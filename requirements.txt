@@ -1,0 +1,21 @@
+# Core data + geospatial stack
+osmnx>=2.0.0
+geopandas>=1.0.0
+shapely>=2.0.0
+pyproj>=3.6.0
+numpy>=1.26.0
+pandas>=2.1.0
+
+# Config + logging
+pyyaml>=6.0
+
+# Use the OS certificate store for SSL verification (works behind
+# corporate SSL-inspection proxies such as Zscaler / Netskope).
+truststore>=0.9
+
+# Visualization (kept per spec; not required for MVP run)
+matplotlib>=3.8.0
+folium>=0.16.0
+
+# Optional convenience
+tqdm>=4.66.0

@@ -1,0 +1,82 @@
+# -----------------------------------------------------------------------------
+# Ottawa MURB Geometry Dataset Extraction - default configuration
+# -----------------------------------------------------------------------------
+# All paths are resolved relative to the project root (parent of `src/`).
+# Any value here can be overridden via CLI flags in run_pipeline.py.
+# -----------------------------------------------------------------------------
+
+study_area:
+  # Free-form place name resolved via OSMnx `geocode_to_gdf`.
+  city: "Ottawa, Ontario, Canada"
+
+acquisition:
+  # One of: osmnx | overpass | pbf
+  # Only `osmnx` is implemented in this MVP. The other modes are stubs.
+  method: osmnx
+  # Split the boundary into an NxN grid of tiles and query each separately.
+  # Large cities like Ottawa can otherwise blow past Overpass timeouts.
+  tile_grid: 4
+  # Overpass timeout (seconds) applied to osmnx.
+  timeout: 300
+  # Retries per tile on transient failures.
+  max_retries: 3
+
+crs:
+  # Working (projected) CRS used for all metric calculations.
+  working: "EPSG:3978"
+  # Output CRS (WGS84 for GeoJSON portability).
+  output_geojson: "EPSG:4326"
+
+paths:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  outputs_dir: "data/outputs"
+  cache_dir: "data/raw/osm_cache"
+
+height:
+  # Default floor-to-floor height (m) used when only building:levels is known.
+  floor_to_floor_m: 3.0
+  # Default storey height used when only `height` is known and levels missing.
+  storey_from_height_m: 3.0
+
+# -----------------------------------------------------------------------------
+# MURB identification heuristics.
+#
+# Each rule contributes to a confidence score in [0, 1]. Rules are evaluated
+# in order; the highest matching base score wins, then boosts are added and
+# the total is clipped to 1.0. `reason` strings are concatenated.
+# -----------------------------------------------------------------------------
+murb:
+  # Keep only buildings with confidence >= this threshold in the final output.
+  min_confidence: 0.5
+
+  # Base scores by `building` tag value.
+  base_scores:
+    apartments: 0.90
+    residential: 0.55
+    terrace: 0.45
+    dormitory: 0.70
+    house: 0.00
+    detached: 0.00
+    semidetached_house: 0.00
+    bungalow: 0.00
+
+  # Additive boosts on top of the base score.
+  boosts:
+    levels_ge_3: 0.20      # building:levels >= 3
+    levels_ge_6: 0.05      # extra boost for >= 6 storeys
+    flats_ge_3: 0.20       # building:flats >= 3
+    has_addr_housenumber: 0.02
+
+# -----------------------------------------------------------------------------
+# Lightweight shape classification thresholds. Descriptive only.
+# -----------------------------------------------------------------------------
+shape:
+  rectangularity_high: 0.90    # rectangle / square / slab / tower baseline
+  rectangularity_mid: 0.65     # L / U range floor
+  square_aspect_max: 1.30      # aspect_ratio < this => square-ish
+  slab_aspect_min: 4.0         # aspect_ratio >= this => slab
+  tower_levels_min: 8          # levels_est >= this => tower (if compact)
+  courtyard_ratio_min: 0.03    # courtyard_area / footprint_area
+  vertex_count_l_range: [6, 8]
+  vertex_count_u_range: [8, 12]

@@ -1,0 +1,109 @@
+"""End-to-end MURB geometry pipeline.
+
+Usage
+-----
+    python -m src.run_pipeline --city "Ottawa, Ontario, Canada"
+
+Or from the project root:
+
+    python src/run_pipeline.py --config config/settings.yaml
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+import time
+from pathlib import Path
+
+# Route Python's SSL through the OS certificate store so corporate
+# SSL-inspection proxies (Zscaler / Netskope / etc.) work without
+# extra CA-bundle configuration. Must run BEFORE `requests`/`osmnx`
+# opens any HTTPS connection.
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:  # pragma: no cover - optional dependency
+    pass
+
+# Allow `python src/run_pipeline.py` (script) as well as `-m src.run_pipeline`.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from src.calculate_geometry import calculate_geometry
+    from src.classify_shapes import classify_shapes
+    from src.download_osm import download_buildings
+    from src.estimate_heights import estimate_heights
+    from src.export_results import export_results
+    from src.identify_murbs import identify_murbs
+    from src.preprocess import preprocess
+    from src.utils import get_logger, load_settings
+else:
+    from .calculate_geometry import calculate_geometry
+    from .classify_shapes import classify_shapes
+    from .download_osm import download_buildings
+    from .estimate_heights import estimate_heights
+    from .export_results import export_results
+    from .identify_murbs import identify_murbs
+    from .preprocess import preprocess
+    from .utils import get_logger, load_settings
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Extract MURB geometry dataset from OpenStreetMap.",
+    )
+    p.add_argument("--config", type=Path, default=None,
+                   help="Path to settings.yaml (default: config/settings.yaml)")
+    p.add_argument("--city", type=str, default=None,
+                   help="Override study area (OSM place name)")
+    p.add_argument("--basename", type=str, default="ottawa_murbs",
+                   help="Base filename for exported outputs")
+    p.add_argument("--limit", type=int, default=None,
+                   help="Optional: process only first N cleaned buildings (debug)")
+    p.add_argument("--verbose", action="store_true",
+                   help="Enable DEBUG logging")
+    return p.parse_args()
+
+
+def main() -> int:
+    args = _parse_args()
+    log = get_logger(level=logging.DEBUG if args.verbose else logging.INFO)
+
+    settings = load_settings(args.config)
+    if args.city:
+        settings["study_area"]["city"] = args.city
+
+    t0 = time.time()
+    log.info("=== Stage 1/6: download OSM buildings ===")
+    raw = download_buildings(settings)
+
+    log.info("=== Stage 2/6: preprocess & repair geometries ===")
+    clean = preprocess(raw, settings)
+
+    if args.limit:
+        log.info("Applying debug --limit=%d", args.limit)
+        clean = clean.head(args.limit).copy()
+
+    log.info("=== Stage 3/6: identify MURBs ===")
+    murbs = identify_murbs(clean, settings)
+
+    log.info("=== Stage 4/6: estimate heights & storeys ===")
+    murbs = estimate_heights(murbs, settings)
+
+    log.info("=== Stage 5/6: compute geometry metrics ===")
+    murbs = calculate_geometry(murbs)
+    murbs = classify_shapes(murbs, settings)
+
+    log.info("=== Stage 6/6: export results ===")
+    paths = export_results(murbs, settings, basename=args.basename)
+    for kind, p in paths.items():
+        log.info("  %-8s -> %s", kind, p)
+
+    log.info("Done in %.1fs. Retained %d MURB records.",
+             time.time() - t0, len(murbs))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
