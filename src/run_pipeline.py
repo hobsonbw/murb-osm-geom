@@ -37,7 +37,7 @@ if __package__ in (None, ""):
     from src.export_results import export_results
     from src.identify_murbs import identify_murbs
     from src.preprocess import preprocess
-    from src.utils import get_logger, load_settings
+    from src.utils import ensure_dir, get_logger, load_settings, resolve_path
 else:
     from .calculate_geometry import calculate_geometry
     from .classify_shapes import classify_shapes
@@ -46,7 +46,9 @@ else:
     from .export_results import export_results
     from .identify_murbs import identify_murbs
     from .preprocess import preprocess
-    from .utils import get_logger, load_settings
+    from .utils import ensure_dir, get_logger, load_settings, resolve_path
+
+import geopandas as gpd
 
 
 def _parse_args() -> argparse.Namespace:
@@ -61,6 +63,8 @@ def _parse_args() -> argparse.Namespace:
                    help="Base filename for exported outputs")
     p.add_argument("--limit", type=int, default=None,
                    help="Optional: process only first N cleaned buildings (debug)")
+    p.add_argument("--from-checkpoint", action="store_true",
+                   help="Skip stages 1-4, load from checkpoint, only run metrics/export (stages 5-6)")
     p.add_argument("--verbose", action="store_true",
                    help="Enable DEBUG logging")
     return p.parse_args()
@@ -74,22 +78,40 @@ def main() -> int:
     if args.city:
         settings["study_area"]["city"] = args.city
 
+    # Checkpoint file: classified MURBs with height estimates (after stage 4)
+    processed_dir = ensure_dir(resolve_path(settings["paths"]["processed_dir"]))
+    checkpoint_path = processed_dir / f"{args.basename}_checkpoint.gpkg"
+
     t0 = time.time()
-    log.info("=== Stage 1/6: download OSM buildings ===")
-    raw = download_buildings(settings)
 
-    log.info("=== Stage 2/6: preprocess & repair geometries ===")
-    clean = preprocess(raw, settings)
+    if args.from_checkpoint:
+        if not checkpoint_path.exists():
+            log.error("Checkpoint not found: %s", checkpoint_path)
+            log.error("Run without --from-checkpoint first to create it.")
+            return 1
+        log.info("=== Loading from checkpoint: %s ===", checkpoint_path)
+        murbs = gpd.read_file(checkpoint_path)
+        log.info("Loaded %d records from checkpoint", len(murbs))
+    else:
+        log.info("=== Stage 1/6: download OSM buildings ===")
+        raw = download_buildings(settings)
 
-    if args.limit:
-        log.info("Applying debug --limit=%d", args.limit)
-        clean = clean.head(args.limit).copy()
+        log.info("=== Stage 2/6: preprocess & repair geometries ===")
+        clean = preprocess(raw, settings)
 
-    log.info("=== Stage 3/6: identify MURBs ===")
-    murbs = identify_murbs(clean, settings)
+        if args.limit:
+            log.info("Applying debug --limit=%d", args.limit)
+            clean = clean.head(args.limit).copy()
 
-    log.info("=== Stage 4/6: estimate heights & storeys ===")
-    murbs = estimate_heights(murbs, settings)
+        log.info("=== Stage 3/6: identify MURBs ===")
+        murbs = identify_murbs(clean, settings)
+
+        log.info("=== Stage 4/6: estimate heights & storeys ===")
+        murbs = estimate_heights(murbs, settings)
+
+        # Save checkpoint after classification and height estimation
+        log.info("Saving checkpoint to %s", checkpoint_path)
+        murbs.to_file(checkpoint_path, driver="GPKG")
 
     log.info("=== Stage 5/6: compute geometry metrics ===")
     murbs = calculate_geometry(murbs)
