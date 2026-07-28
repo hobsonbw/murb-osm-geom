@@ -14,7 +14,7 @@ from .utils import ensure_dir, get_logger, resolve_path
 LOGGER = get_logger()
 
 
-# Canonical output column order (matches requirements.md).
+# Canonical output column order (matches specification.md).
 OUTPUT_COLUMNS: list[str] = [
     "osmid",
     "building_type",

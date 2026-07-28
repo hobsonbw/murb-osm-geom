@@ -187,8 +187,13 @@ Using the minimum rotated rectangle:
 ```text
 length_m
 width_m
+average_depth_m
 aspect_ratio
 ```
+
+- `length_m` and `width_m`: dimensions of the minimum rotated rectangle
+- `average_depth_m`: weighted average building depth using medial axis skeleton analysis
+- `aspect_ratio`: length/width ratio
 
 These dimensions should represent the overall building form regardless of orientation.
 

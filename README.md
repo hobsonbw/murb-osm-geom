@@ -1,4 +1,4 @@
-﻿# Ottawa MURB Geometry Extraction (OpenStreetMap)
+# Ottawa MURB Geometry Extraction (OpenStreetMap)
 
 Python pipeline that identifies likely Multi-Unit Residential Buildings
 (MURBs) in the City of Ottawa from OpenStreetMap, then extracts building-level
@@ -6,7 +6,7 @@ geometry characteristics suitable as inputs to energy and code-compliance
 models. Designed to support NECB-style archetype development without
 baking archetype assumptions into the dataset itself.
 
-See [requirements.md](requirements.md) for the full specification.
+See [specification.md](specification.md) for the full specification.
 
 ## Quick start
 
@@ -29,6 +29,20 @@ Outputs are written to `data/outputs/`:
 
 Raw OSM downloads are cached under `data/raw/osm_cache/` so re-runs
 skip the network.
+
+## Fast iteration on metrics
+
+To iterate quickly on geometry metrics without re-running classification:
+
+```powershell
+# First run: creates checkpoint after stage 4 (classification + height estimation)
+python src/run_pipeline.py
+
+# Fast re-runs: skip stages 1-4, only recalculate metrics (stages 5-6)
+python src/run_pipeline.py --from-checkpoint
+```
+
+The checkpoint is saved to `data/processed/ottawa_murbs_checkpoint.gpkg` and contains all classified MURBs with height estimates. Modify [src/calculate_geometry.py](src/calculate_geometry.py) or [src/classify_shapes.py](src/classify_shapes.py), then run with `--from-checkpoint` to see changes in seconds.
 
 ## Configuration
 
@@ -60,12 +74,12 @@ python src/run_pipeline.py --city "Kingston, Ontario, Canada" --basename kingsto
 
 ## Output schema
 
-Matches the specification in `requirements.md`:
+Matches the specification in `specification.md`:
 
 ```
 osmid, building_type, murb_confidence, murb_reason,
 footprint_area_m2, perimeter_m,
-length_m, width_m, aspect_ratio,
+length_m, width_m, average_depth_m, aspect_ratio,
 height_m, height_est_m, height_source,
 levels, levels_est, levels_source,
 gross_floor_area_est_m2,
@@ -88,7 +102,7 @@ geometry
 
 ## Project layout
 
-`
+```
 project/
 ├── config/settings.yaml
 ├── data/
@@ -105,8 +119,7 @@ project/
 │   ├── export_results.py
 │   ├── run_pipeline.py
 │   └── utils.py
-├── requirements.md
+├── specification.md
 ├── requirements.txt
 └── README.md
-`
-# murb-osm-geom
+```
