@@ -6,7 +6,7 @@ All calculations assume `gdf` is in a projected CRS whose units are metres
 Adds columns:
     footprint_area_m2
     perimeter_m
-    length_m, width_m, aspect_ratio
+    length_m, width_m, average_depth_m, aspect_ratio
     bbox_area_m2
     compactness             = 4*pi*A / P^2
     rectangularity          = A / bbox_area
@@ -22,13 +22,20 @@ import math
 
 import geopandas as gpd
 import numpy as np
+from scipy import ndimage
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.geometry.base import BaseGeometry
+from skimage.draw import polygon as raster_polygon
+from skimage.morphology import medial_axis
 
 from .utils import get_logger
 
 
 LOGGER = get_logger()
+
+# Building depth calculation parameters
+RASTER_RESOLUTION = 0.5
+MIN_BRANCH_LENGTH = 10.0
 
 
 def _min_rect_dims(geom: BaseGeometry) -> tuple[float, float]:
@@ -77,6 +84,82 @@ def _vertex_count(geom: BaseGeometry) -> int:
     return 0
 
 
+def _polygon_to_raster(poly: Polygon, resolution: float = 0.5, padding: int = 5) -> np.ndarray:
+    """Convert a polygon to a binary raster for depth calculation."""
+    minx, miny, maxx, maxy = poly.bounds
+    width = int(np.ceil((maxx - minx) / resolution)) + 2 * padding
+    height = int(np.ceil((maxy - miny) / resolution)) + 2 * padding
+    raster = np.zeros((height, width), dtype=bool)
+
+    coords = np.array(poly.exterior.coords)
+    x = (coords[:, 0] - minx) / resolution + padding
+    y = (coords[:, 1] - miny) / resolution + padding
+
+    rr, cc = raster_polygon(y, x, raster.shape)
+    raster[rr, cc] = True
+
+    return raster
+
+
+def _get_branches(binary: np.ndarray) -> tuple[np.ndarray, int, np.ndarray]:
+    """Extract skeleton branches and distance transform for depth calculation."""
+    skeleton, distance = medial_axis(binary, return_distance=True)
+
+    kernel = np.ones((3, 3), dtype=int)
+    neighbour_count = (
+        ndimage.convolve(skeleton.astype(int), kernel, mode="constant")
+        - skeleton.astype(int)
+    )
+
+    branch_nodes = skeleton & (neighbour_count > 2)
+    segments = skeleton & (~branch_nodes)
+    labels, n_labels = ndimage.label(segments)
+
+    return labels, n_labels, distance
+
+
+def _calculate_average_depth(
+    geom: BaseGeometry,
+    resolution: float = RASTER_RESOLUTION,
+    min_branch_length: float = MIN_BRANCH_LENGTH,
+) -> float:
+    """Calculate average building depth using medial axis skeleton.
+    
+    Returns the weighted average depth across all significant skeleton branches,
+    with fallback to simple area/perimeter estimate for degenerate cases.
+    """
+    if geom is None or geom.is_empty or not isinstance(geom, Polygon):
+        return np.nan
+
+    try:
+        raster = _polygon_to_raster(geom, resolution=resolution)
+        labels, n_labels, distance = _get_branches(raster)
+
+        branch_lengths = []
+        branch_depths = []
+
+        for label_id in range(1, n_labels + 1):
+            mask = labels == label_id
+            branch_length = mask.sum() * resolution
+
+            # Remove tiny skeleton spurs
+            if branch_length < min_branch_length:
+                continue
+
+            depths = 2.0 * distance[mask] * resolution
+            branch_lengths.append(branch_length)
+            branch_depths.append(depths.mean())
+
+        if len(branch_lengths) == 0:
+            # Fallback: simple area/perimeter estimate
+            return geom.area / max(geom.length / 4.0, 1.0)
+
+        return float(np.average(branch_depths, weights=branch_lengths))
+
+    except Exception:
+        return np.nan
+
+
 def calculate_geometry(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if gdf.empty:
         return gdf
@@ -93,6 +176,10 @@ def calculate_geometry(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     dims = gdf.geometry.apply(_min_rect_dims)
     gdf["length_m"] = [d[0] for d in dims]
     gdf["width_m"] = [d[1] for d in dims]
+
+    # Average building depth using medial axis skeleton
+    LOGGER.info("Computing average building depths")
+    gdf["average_depth_m"] = gdf.geometry.apply(_calculate_average_depth)
 
     # Aspect ratio: length / width. Guard against zero-width degeneracies.
     with np.errstate(divide="ignore", invalid="ignore"):
