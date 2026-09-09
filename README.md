@@ -97,6 +97,28 @@ python src/run_pipeline.py --city "Kingston, Ontario, Canada" --keep-intermediat
 You can also change the default study area permanently by editing
 `study_area.city` in [config/settings.yaml](config/settings.yaml).
 
+## Polygon plots (optional, run separately)
+
+The main pipeline does not draw any per-building images. To render one
+PNG per MURB after a run completes, invoke the batch plotter directly
+against the exported CSV:
+
+```powershell
+# Plot every polygon for Ottawa
+# -> data/outputs/polygon_plots/ottawa_murbs/<osmid>.png
+python scripts/plot_all_polygons.py --basename ottawa_murbs
+
+# Smoke test with only 25 buildings
+python scripts/plot_all_polygons.py --basename ottawa_murbs --limit 25
+
+# Or point at any CSV / output dir explicitly
+python scripts/plot_all_polygons.py --csv data/outputs/kingston_murbs.csv
+```
+
+PNGs land in `data/outputs/polygon_plots/<basename>/` so different cities
+never overwrite each other. Expect ~40 KB per polygon (Ottawa's full run
+was ~113 MB for ~2,800 MURBs).
+
 ## Configuration
 
 All tunable parameters live in [config/settings.yaml](config/settings.yaml):

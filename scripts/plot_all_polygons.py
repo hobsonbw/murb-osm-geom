@@ -1,12 +1,22 @@
 """Batch-plot every polygon in a MURB CSV, one PNG per osmid.
 
 Usage:
-    python scripts/plot_all_polygons.py [csv_path] [out_dir]
+    # Plot from a pipeline-produced CSV by basename (resolves to
+    # data/outputs/<basename>.csv, writes to data/outputs/polygon_plots/<basename>/)
+    python scripts/plot_all_polygons.py --basename ottawa_murbs
 
-Defaults: data/outputs/kingston_smoke_subset.csv -> data/outputs/polygon_plots/
+    # Or point at any CSV explicitly:
+    python scripts/plot_all_polygons.py --csv path/to/foo.csv --out-dir path/to/plots/
+
+    # Limit for a quick sanity check:
+    python scripts/plot_all_polygons.py --basename ottawa_murbs --limit 25
+
+This script is NOT run by the pipeline. Invoke it manually after a
+run_pipeline.py run completes.
 """
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -92,15 +102,45 @@ def _plot_one(geom, meta: dict, out_path: Path) -> None:
     plt.close(fig)
 
 
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Batch-plot every polygon in a MURB CSV, one PNG per osmid.",
+    )
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--basename", type=str,
+                   help="Resolve CSV as data/outputs/<basename>.csv and write "
+                        "PNGs to data/outputs/polygon_plots/<basename>/")
+    g.add_argument("--csv", type=Path,
+                   help="Path to a MURB CSV with a geometry_wkt column")
+    p.add_argument("--out-dir", type=Path, default=None,
+                   help="Override output directory for PNGs")
+    p.add_argument("--limit", type=int, default=None,
+                   help="Only plot the first N rows (useful for smoke tests)")
+    return p.parse_args()
+
+
 def main() -> int:
-    csv_path = Path(sys.argv[1]) if len(sys.argv) > 1 \
-        else Path("data/outputs/kingston_smoke_subset.csv")
-    out_dir = Path(sys.argv[2]) if len(sys.argv) > 2 \
-        else Path("data/outputs/polygon_plots")
+    args = _parse_args()
+
+    if args.basename:
+        csv_path = Path("data/outputs") / f"{args.basename}.csv"
+        default_out = Path("data/outputs/polygon_plots") / args.basename
+    else:
+        csv_path = args.csv
+        default_out = Path("data/outputs/polygon_plots") / csv_path.stem
+
+    if not csv_path.exists():
+        print(f"CSV not found: {csv_path}", file=sys.stderr)
+        return 1
+
+    out_dir = args.out_dir or default_out
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(csv_path)
+    if args.limit:
+        df = df.head(args.limit)
     print(f"Loaded {len(df)} rows from {csv_path}")
+    print(f"Writing PNGs to {out_dir}")
 
     ok = 0
     skipped = 0
