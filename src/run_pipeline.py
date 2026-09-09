@@ -51,6 +51,34 @@ else:
 import geopandas as gpd
 
 
+def _prune_intermediates(basename: str, settings: dict, log: logging.Logger) -> None:
+    """Delete the large per-city raw/clean building GeoPackages after checkpoint.
+
+    Both files are trivially reconstructible from the tile cache, so pruning
+    them keeps a multi-city working tree from ballooning past tens of GB.
+    """
+    raw_dir = resolve_path(settings["paths"]["raw_dir"])
+    processed_dir = resolve_path(settings["paths"]["processed_dir"])
+    candidates = [
+        raw_dir / f"{basename}_buildings_raw.gpkg",
+        processed_dir / f"{basename}_buildings_clean.gpkg",
+    ]
+    freed = 0
+    for path in candidates:
+        if path.exists():
+            size = path.stat().st_size
+            try:
+                path.unlink()
+            except OSError as err:
+                log.warning("Could not prune %s: %s", path, err)
+                continue
+            freed += size
+            log.info("Pruned %s (%.1f MB)", path, size / (1024 * 1024))
+    if freed:
+        log.info("Reclaimed %.1f MB (pass --keep-intermediates to retain)",
+                 freed / (1024 * 1024))
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Extract MURB geometry dataset from OpenStreetMap.",
@@ -66,6 +94,13 @@ def _parse_args() -> argparse.Namespace:
                    help="Optional: process only first N cleaned buildings (debug)")
     p.add_argument("--from-checkpoint", action="store_true",
                    help="Skip stages 1-4, load from checkpoint, only run metrics/export (stages 5-6)")
+    p.add_argument("--keep-intermediates", action=argparse.BooleanOptionalAction,
+                   default=False,
+                   help="Keep <basename>_buildings_raw.gpkg and "
+                        "<basename>_buildings_clean.gpkg after the checkpoint is "
+                        "written. Default: prune them (they're rebuildable from "
+                        "the tile cache and save ~2.7 GB per Ottawa-sized city). "
+                        "Use --keep-intermediates to retain them.")
     p.add_argument("--verbose", action="store_true",
                    help="Enable DEBUG logging")
     return p.parse_args()
@@ -120,6 +155,9 @@ def main() -> int:
         # Save checkpoint after classification and height estimation
         log.info("Saving checkpoint to %s", checkpoint_path)
         murbs.to_file(checkpoint_path, driver="GPKG")
+
+        if not args.keep_intermediates:
+            _prune_intermediates(basename, settings, log)
 
     log.info("=== Stage 5/6: compute geometry metrics ===")
     murbs = calculate_geometry(murbs)

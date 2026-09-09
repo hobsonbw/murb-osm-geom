@@ -79,6 +79,21 @@ The OSM tile cache in `data/raw/osm_cache/` is keyed by tile geometry
 hash, so different cities can share it safely and re-runs of the same
 city skip Overpass entirely.
 
+### Disk footprint and pruning
+
+An Ottawa-sized run produces about 3.25 GB of files, of which ~2.7 GB
+is the raw+clean full-building GeoPackages that stages 3-6 no longer
+need once the checkpoint is written. By default the pipeline deletes
+those two files after the checkpoint is saved, cutting per-city cost
+to ~530 MB. They are trivially rebuildable from the tile cache, so
+`--from-checkpoint` runs are unaffected.
+
+To retain them (e.g. for debugging stages 1-2):
+
+```powershell
+python src/run_pipeline.py --city "Kingston, Ontario, Canada" --keep-intermediates
+```
+
 You can also change the default study area permanently by editing
 `study_area.city` in [config/settings.yaml](config/settings.yaml).
 
