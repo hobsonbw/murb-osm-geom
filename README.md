@@ -1,10 +1,13 @@
-# Ottawa MURB Geometry Extraction (OpenStreetMap)
+# MURB Geometry Extraction from OpenStreetMap
 
 Python pipeline that identifies likely Multi-Unit Residential Buildings
-(MURBs) in the City of Ottawa from OpenStreetMap, then extracts building-level
+(MURBs) in a given city from OpenStreetMap, then extracts building-level
 geometry characteristics suitable as inputs to energy and code-compliance
 models. Designed to support NECB-style archetype development without
 baking archetype assumptions into the dataset itself.
+
+Ottawa was the initial proof-of-concept study area; the pipeline is
+city-agnostic and can be pointed at any place name resolvable by OSMnx.
 
 See [specification.md](specification.md) for the full specification.
 
@@ -21,13 +24,15 @@ pip install -r requirements.txt
 python src/run_pipeline.py
 ```
 
-Outputs are written to `data/outputs/`:
+Outputs are written to `data/outputs/`, with filenames derived from the
+city (or the `--basename` you pass):
 
-- `ottawa_murbs.csv` - one row per building, geometry as WKT
-- `ottawa_murbs.gpkg` - GeoPackage in EPSG:3978 (metric)
-- `ottawa_murbs.geojson` - GeoJSON in EPSG:4326
+- `<basename>.csv` - one row per building, geometry as WKT
+- `<basename>.gpkg` - GeoPackage in EPSG:3978 (metric)
+- `<basename>.geojson` - GeoJSON in EPSG:4326
 
-Raw OSM downloads are cached under `data/raw/osm_cache/` so re-runs
+Raw OSM downloads are cached under `data/raw/osm_cache/` (keyed by tile
+geometry hash, so multiple cities share the cache safely) and re-runs
 skip the network.
 
 ## Fast iteration on metrics
@@ -42,7 +47,40 @@ python src/run_pipeline.py
 python src/run_pipeline.py --from-checkpoint
 ```
 
-The checkpoint is saved to `data/processed/ottawa_murbs_checkpoint.gpkg` and contains all classified MURBs with height estimates. Modify [src/calculate_geometry.py](src/calculate_geometry.py) or [src/classify_shapes.py](src/classify_shapes.py), then run with `--from-checkpoint` to see changes in seconds.
+The checkpoint is saved to `data/processed/<basename>_checkpoint.gpkg` and contains all classified MURBs with height estimates. Modify [src/calculate_geometry.py](src/calculate_geometry.py) or [src/classify_shapes.py](src/classify_shapes.py), then run with `--from-checkpoint` to see changes in seconds.
+
+## Running additional cities
+
+The pipeline is city-agnostic. Pass `--city` with any place name that
+OSMnx's `geocode_to_gdf` can resolve. If you don't pass `--basename`,
+it is derived from the city (first comma-separated segment, slugified),
+so successive cities produce distinct filenames without collisions:
+
+```powershell
+# Uses the default city from config/settings.yaml (Ottawa)
+python src/run_pipeline.py
+
+# Kingston, ON  -> outputs/kingston_murbs.{csv,gpkg,geojson}
+python src/run_pipeline.py --city "Kingston, Ontario, Canada"
+
+# Explicit basename overrides the derived one
+python src/run_pipeline.py --city "Halifax, Nova Scotia, Canada" --basename halifax_pilot
+```
+
+All per-city artifacts are namespaced by basename:
+
+| Location | Filename pattern |
+|----------|------------------|
+| `data/raw/` | `<basename>_boundary.gpkg`, `<basename>_buildings_raw.gpkg` |
+| `data/processed/` | `<basename>_buildings_clean.gpkg`, `<basename>_checkpoint.gpkg` |
+| `data/outputs/` | `<basename>.csv`, `<basename>.gpkg`, `<basename>.geojson` |
+
+The OSM tile cache in `data/raw/osm_cache/` is keyed by tile geometry
+hash, so different cities can share it safely and re-runs of the same
+city skip Overpass entirely.
+
+You can also change the default study area permanently by editing
+`study_area.city` in [config/settings.yaml](config/settings.yaml).
 
 ## Configuration
 

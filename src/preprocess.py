@@ -83,7 +83,8 @@ def preprocess(gdf: gpd.GeoDataFrame, settings: dict[str, Any]) -> gpd.GeoDataFr
     gdf = gdf.to_crs(working_crs)
     LOGGER.info("Projected to %s; %d features remain", working_crs, len(gdf))
 
-    out_path = processed_dir / "buildings_clean.gpkg"
+    basename = settings.get("run", {}).get("basename", "study_area")
+    out_path = processed_dir / f"{basename}_buildings_clean.gpkg"
     # Persist a version with only geometry + osmid + raw tags of interest to
     # keep the cached file small enough for GDAL to write reliably.
     _persist_clean(gdf, out_path)

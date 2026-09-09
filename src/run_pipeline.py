@@ -37,7 +37,7 @@ if __package__ in (None, ""):
     from src.export_results import export_results
     from src.identify_murbs import identify_murbs
     from src.preprocess import preprocess
-    from src.utils import ensure_dir, get_logger, load_settings, resolve_path
+    from src.utils import ensure_dir, get_logger, load_settings, resolve_path, slugify_city
 else:
     from .calculate_geometry import calculate_geometry
     from .classify_shapes import classify_shapes
@@ -46,7 +46,7 @@ else:
     from .export_results import export_results
     from .identify_murbs import identify_murbs
     from .preprocess import preprocess
-    from .utils import ensure_dir, get_logger, load_settings, resolve_path
+    from .utils import ensure_dir, get_logger, load_settings, resolve_path, slugify_city
 
 import geopandas as gpd
 
@@ -59,8 +59,9 @@ def _parse_args() -> argparse.Namespace:
                    help="Path to settings.yaml (default: config/settings.yaml)")
     p.add_argument("--city", type=str, default=None,
                    help="Override study area (OSM place name)")
-    p.add_argument("--basename", type=str, default="ottawa_murbs",
-                   help="Base filename for exported outputs")
+    p.add_argument("--basename", type=str, default=None,
+                   help="Base filename for exported outputs and intermediates "
+                        "(default: derived from the city, e.g. 'ottawa_murbs')")
     p.add_argument("--limit", type=int, default=None,
                    help="Optional: process only first N cleaned buildings (debug)")
     p.add_argument("--from-checkpoint", action="store_true",
@@ -78,9 +79,16 @@ def main() -> int:
     if args.city:
         settings["study_area"]["city"] = args.city
 
+    # Derive basename from the city name when the caller didn't override it,
+    # so running a second city doesn't overwrite the first city's outputs.
+    basename = args.basename or f"{slugify_city(settings['study_area']['city'])}_murbs"
+    settings.setdefault("run", {})["basename"] = basename
+    log.info("Study area: %s   basename: %s",
+             settings["study_area"]["city"], basename)
+
     # Checkpoint file: classified MURBs with height estimates (after stage 4)
     processed_dir = ensure_dir(resolve_path(settings["paths"]["processed_dir"]))
-    checkpoint_path = processed_dir / f"{args.basename}_checkpoint.gpkg"
+    checkpoint_path = processed_dir / f"{basename}_checkpoint.gpkg"
 
     t0 = time.time()
 
@@ -118,7 +126,7 @@ def main() -> int:
     murbs = classify_shapes(murbs, settings)
 
     log.info("=== Stage 6/6: export results ===")
-    paths = export_results(murbs, settings, basename=args.basename)
+    paths = export_results(murbs, settings, basename=basename)
     for kind, p in paths.items():
         log.info("  %-8s -> %s", kind, p)
 

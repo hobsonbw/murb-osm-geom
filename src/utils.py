@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,18 @@ def ensure_dir(path: str | Path) -> Path:
     p = Path(path)
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def slugify_city(city: str) -> str:
+    """Turn a place name like 'Ottawa, Ontario, Canada' into 'ottawa'.
+
+    Keeps only the first comma-separated segment, lower-cased, with any
+    non-alphanumeric character collapsed to underscore. Used to derive a
+    default output basename so multi-city runs don't overwrite each other.
+    """
+    head = city.split(",", 1)[0].strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", head).strip("_")
+    return slug or "study_area"
 
 
 def get_logger(name: str = LOGGER_NAME, level: int = logging.INFO) -> logging.Logger:

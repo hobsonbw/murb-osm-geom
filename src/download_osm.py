@@ -151,13 +151,16 @@ def download_buildings(settings: dict[str, Any]) -> gpd.GeoDataFrame:
 
     LOGGER.info("Total raw building features: %d", len(merged))
 
+    # Prefix per-city so multi-city runs don't clobber each other's intermediates.
+    basename = settings.get("run", {}).get("basename", "study_area")
+
     # Save the merged raw dataset for reproducibility.
-    raw_path = raw_dir / "buildings_raw.gpkg"
+    raw_path = raw_dir / f"{basename}_buildings_raw.gpkg"
     _safe_write_gpkg(merged, raw_path)
     LOGGER.info("Wrote %s", raw_path)
 
     # Also save the boundary for downstream visualization / debugging.
-    boundary_path = raw_dir / "boundary.gpkg"
+    boundary_path = raw_dir / f"{basename}_boundary.gpkg"
     boundary.to_file(boundary_path, driver="GPKG")
     LOGGER.info("Wrote %s", boundary_path)
 
