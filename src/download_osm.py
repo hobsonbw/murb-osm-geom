@@ -88,7 +88,7 @@ def _download_tile(
                 # osmnx returns a MultiIndex (element_type, osmid); flatten it.
                 if isinstance(gdf.index, gpd.pd.MultiIndex):
                     gdf = gdf.reset_index()
-            # Persist to cache.
+            # Persist to cache even when empty so we don't hammer the API again.
             _safe_write_gpkg(gdf, cache_file)
             return gdf
         except Exception as err:  # noqa: BLE001 - retry any network/parse err
@@ -97,7 +97,14 @@ def _download_tile(
                            key, attempt, max_retries, err)
             time.sleep(2 * attempt)
 
-    raise RuntimeError(f"Tile {key} failed after {max_retries} attempts: {last_err}")
+    LOGGER.warning(
+        "Tile %s failed after %d attempts; treating as empty and continuing. "
+        "This city will be incomplete for that area. Error: %s",
+        key, max_retries, last_err,
+    )
+    empty = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
+    _safe_write_gpkg(empty, cache_file)
+    return empty
 
 
 def _safe_write_gpkg(gdf: gpd.GeoDataFrame, path: Path) -> None:
@@ -137,7 +144,7 @@ def download_buildings(settings: dict[str, Any]) -> gpd.GeoDataFrame:
         LOGGER.info("Tile %d/%d", idx, len(tiles))
         frames.append(_download_tile(
             tile, cache_dir=cache_dir,
-            max_retries=int(acq.get("max_retries", 3)),
+            max_retries=int(acq.get("max_retries", 5)),
         ))
 
     non_empty = [f for f in frames if not f.empty]

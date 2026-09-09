@@ -17,9 +17,9 @@ acquisition:
   # Large cities like Ottawa can otherwise blow past Overpass timeouts.
   tile_grid: 4
   # Overpass timeout (seconds) applied to osmnx.
-  timeout: 300
+  timeout: 600
   # Retries per tile on transient failures.
-  max_retries: 3
+  max_retries: 5
 
 crs:
   # Working (projected) CRS used for all metric calculations.
