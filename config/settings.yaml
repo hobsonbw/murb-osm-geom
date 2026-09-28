@@ -16,10 +16,20 @@ acquisition:
   # Split the boundary into an NxN grid of tiles and query each separately.
   # Large cities like Ottawa can otherwise blow past Overpass timeouts.
   tile_grid: 4
-  # Overpass timeout (seconds) applied to osmnx.
-  timeout: 600
-  # Retries per tile on transient failures.
-  max_retries: 5
+  # Per-request timeout (seconds) applied to OSMnx/Overpass.
+  timeout: 120
+  # Rotate public Overpass servers after transient connection failures.
+  # overpass.private.coffee is excluded: its status endpoint returns a
+  # non-numeric slot count ("Currently ...") that osmnx 2.0.7 can't parse,
+  # causing every request against it to fail regardless of timeout.
+  overpass_urls:
+    - "https://overpass-api.de/api"
+    - "https://overpass.kumi.systems/api"
+    - "https://overpass.osm.ch/api"
+    - "https://overpass.openstreetmap.fr/api"
+  # Retries per tile on transient failures. Bumped up since public Overpass
+  # instances intermittently queue/overload on heavy (dense downtown) tiles.
+  max_retries: 8
 
 crs:
   # Working (projected) CRS used for all metric calculations.

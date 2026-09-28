@@ -16,6 +16,7 @@ from typing import Any
 
 import geopandas as gpd
 import osmnx as ox
+from osmnx._errors import InsufficientResponseError
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
@@ -32,9 +33,10 @@ def _cache_key(polygon: BaseGeometry) -> str:
     return hashlib.md5(wkb).hexdigest()[:12]  # noqa: S324 - cache key only
 
 
-def _configure_osmnx(timeout: int) -> None:
+def _configure_osmnx(timeout: int, overpass_url: str) -> None:
     # osmnx v2 uses settings module for these knobs.
-    ox.settings.timeout = timeout
+    ox.settings.requests_timeout = timeout
+    ox.settings.overpass_url = overpass_url
     ox.settings.use_cache = True
     ox.settings.log_console = False
 
@@ -69,6 +71,8 @@ def _download_tile(
     polygon: BaseGeometry,
     cache_dir: Path,
     max_retries: int,
+    timeout: int,
+    overpass_urls: list[str],
 ) -> gpd.GeoDataFrame:
     key = _cache_key(polygon)
     cache_file = cache_dir / f"tile_{key}.gpkg"
@@ -78,8 +82,13 @@ def _download_tile(
 
     last_err: Exception | None = None
     for attempt in range(1, max_retries + 1):
+        overpass_url = overpass_urls[(attempt - 1) % len(overpass_urls)]
+        _configure_osmnx(timeout, overpass_url)
         try:
-            LOGGER.info("Downloading tile=%s attempt=%d", key, attempt)
+            LOGGER.info(
+                "Downloading tile=%s attempt=%d via %s",
+                key, attempt, overpass_url,
+            )
             gdf = ox.features_from_polygon(polygon, tags=BUILDING_TAGS)
             if gdf is None or gdf.empty:
                 LOGGER.info("Tile %s returned 0 features", key)
@@ -91,20 +100,24 @@ def _download_tile(
             # Persist to cache even when empty so we don't hammer the API again.
             _safe_write_gpkg(gdf, cache_file)
             return gdf
+        except InsufficientResponseError:
+            # Genuinely zero matching features in this tile (e.g. water/park) -
+            # a valid result, not a transient failure. Cache and move on.
+            LOGGER.info("Tile %s returned 0 features (no matching features)", key)
+            gdf = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
+            _safe_write_gpkg(gdf, cache_file)
+            return gdf
         except Exception as err:  # noqa: BLE001 - retry any network/parse err
             last_err = err
-            LOGGER.warning("Tile %s failed (attempt %d/%d): %s",
-                           key, attempt, max_retries, err)
+            LOGGER.warning("Tile %s failed (attempt %d/%d via %s): %s",
+                           key, attempt, max_retries, overpass_url, err)
             time.sleep(2 * attempt)
 
-    LOGGER.warning(
-        "Tile %s failed after %d attempts; treating as empty and continuing. "
-        "This city will be incomplete for that area. Error: %s",
-        key, max_retries, last_err,
-    )
-    empty = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
-    _safe_write_gpkg(empty, cache_file)
-    return empty
+    raise RuntimeError(
+        f"Tile {key} failed after {max_retries} attempts; no empty cache "
+        f"entry was written. Retry the pipeline after resolving the download "
+        f"failure. Last error: {last_err}"
+    ) from last_err
 
 
 def _safe_write_gpkg(gdf: gpd.GeoDataFrame, path: Path) -> None:
@@ -130,7 +143,12 @@ def download_buildings(settings: dict[str, Any]) -> gpd.GeoDataFrame:
     cache_dir = ensure_dir(resolve_path(settings["paths"]["cache_dir"]))
     raw_dir = ensure_dir(resolve_path(settings["paths"]["raw_dir"]))
 
-    _configure_osmnx(timeout=int(acq.get("timeout", 300)))
+    timeout = int(acq.get("timeout", 300))
+    overpass_urls = acq.get("overpass_urls", ["https://overpass-api.de/api"])
+    if not isinstance(overpass_urls, list) or not overpass_urls:
+        raise ValueError("acquisition.overpass_urls must be a non-empty list")
+    overpass_urls = [str(url) for url in overpass_urls]
+    _configure_osmnx(timeout, overpass_urls[0])
 
     boundary = get_boundary(city)
     # Union in case the geocoder returns multi-part boundaries.
@@ -145,6 +163,8 @@ def download_buildings(settings: dict[str, Any]) -> gpd.GeoDataFrame:
         frames.append(_download_tile(
             tile, cache_dir=cache_dir,
             max_retries=int(acq.get("max_retries", 5)),
+            timeout=timeout,
+            overpass_urls=overpass_urls,
         ))
 
     non_empty = [f for f in frames if not f.empty]
