@@ -13,12 +13,14 @@ See [specification.md](specification.md) for the full specification.
 
 ## Quick start
 
+Use Python 3.10 or newer (`truststore` does not support Python 3.9).
+
 ```powershell
 # From project root (Windows PowerShell)
-python -m venv .venv
-.venv\Scripts\Activate.ps1
+py -3.10 -m venv venv
+.\venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # Run the pipeline against the default study area (Ottawa).
 python src/run_pipeline.py
@@ -27,7 +29,7 @@ python src/run_pipeline.py
 Outputs are written to `data/outputs/`, with filenames derived from the
 city (or the `--basename` you pass):
 
-- `<basename>.csv` - one row per building, geometry as WKT
+- `<basename>.csv` - one row per building, geometry in `geometry_wkt`
 - `<basename>.gpkg` - GeoPackage in EPSG:3978 (metric)
 - `<basename>.geojson` - GeoJSON in EPSG:4326
 
@@ -119,12 +121,29 @@ PNGs land in `data/outputs/polygon_plots/<basename>/` so different cities
 never overwrite each other. Expect ~40 KB per polygon (Ottawa's full run
 was ~113 MB for ~2,800 MURBs).
 
+## City analysis
+
+After exporting city CSVs, regenerate the Part 3 footprint plot and tables:
+
+```powershell
+python scripts/plot_footprint_area_by_city.py
+```
+
+The script reads `data/outputs/*_murb.csv` and `*_murbs.csv` and writes
+`data/outputs/analysis/footprint_area.svg`, `sample_size.csv`,
+`footprint_area_summary.csv`, and `height.csv`. It includes the configured
+locations in a fixed order, with zero rows for cities without data and an
+aggregate `All` row. The plot omits individual cities with fewer than 10 valid
+Part 3 footprints, but their buildings still contribute to `All`.
+Use `--input-dir` and `--output-dir` to analyze a different set of CSVs without
+overwriting these results.
+
 ## Configuration
 
 All tunable parameters live in [config/settings.yaml](config/settings.yaml):
 
 - Study area (any place name resolvable by OSMnx `geocode_to_gdf`)
-- Acquisition method, tile grid size, timeout, retries
+- OSMnx/Overpass tile grid size, timeout, retries
 - Working CRS (default EPSG:3978 - Canada Atlas Lambert)
 - Floor-to-floor height for level-based height estimation
 - MURB confidence rules (base scores per `building` tag + boosts)
@@ -149,12 +168,13 @@ python src/run_pipeline.py --city "Kingston, Ontario, Canada" --basename kingsto
 
 ## Output schema
 
-Matches the specification in `specification.md`:
+CSV output columns (the GeoPackage and GeoJSON use `geometry` instead of
+`geometry_wkt`):
 
 ```
 osmid, building_type, murb_confidence, murb_reason,
 footprint_area_m2, perimeter_m,
-length_m, width_m, average_depth_m, aspect_ratio,
+length_m, width_m, aspect_ratio,
 height_m, height_est_m, height_source,
 levels, levels_est, levels_source,
 gross_floor_area_est_m2,
@@ -162,7 +182,7 @@ compactness, rectangularity,
 courtyard_area_m2, courtyard_ratio,
 vertex_count,
 shape_class, shape_confidence,
-geometry
+geometry_wkt
 ```
 
 ## Notes / limitations
@@ -173,7 +193,7 @@ geometry
 - Shape classification is intentionally lightweight/heuristic and marked
   as descriptive, not prescriptive.
 - Overpass can rate-limit large city queries. The pipeline splits the
-  boundary into a configurable NxN grid (default 4x4) and caches each tile.
+  boundary into a configurable NxN grid (default 12x12) and caches each tile.
 
 ## Project layout
 
