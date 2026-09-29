@@ -15,7 +15,7 @@ acquisition:
   method: osmnx
   # Split the boundary into an NxN grid of tiles and query each separately.
   # Large cities like Ottawa can otherwise blow past Overpass timeouts.
-  tile_grid: 4
+  tile_grid: 12
   # Per-request timeout (seconds) applied to OSMnx/Overpass.
   timeout: 120
   # Rotate public Overpass servers after transient connection failures.
@@ -25,7 +25,6 @@ acquisition:
   overpass_urls:
     - "https://overpass-api.de/api"
     - "https://overpass.kumi.systems/api"
-    - "https://overpass.osm.ch/api"
     - "https://overpass.openstreetmap.fr/api"
   # Retries per tile on transient failures. Bumped up since public Overpass
   # instances intermittently queue/overload on heavy (dense downtown) tiles.

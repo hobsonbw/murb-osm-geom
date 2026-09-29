@@ -100,13 +100,15 @@ def _download_tile(
             # Persist to cache even when empty so we don't hammer the API again.
             _safe_write_gpkg(gdf, cache_file)
             return gdf
-        except InsufficientResponseError:
-            # Genuinely zero matching features in this tile (e.g. water/park) -
-            # a valid result, not a transient failure. Cache and move on.
-            LOGGER.info("Tile %s returned 0 features (no matching features)", key)
-            gdf = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
-            _safe_write_gpkg(gdf, cache_file)
-            return gdf
+        except InsufficientResponseError as err:
+            # Do not treat an empty response as authoritative: regional or
+            # overloaded endpoints can return no elements for valid queries.
+            last_err = err
+            LOGGER.warning(
+                "Tile %s returned no features on %s (attempt %d/%d); retrying",
+                key, overpass_url, attempt, max_retries,
+            )
+            time.sleep(2 * attempt)
         except Exception as err:  # noqa: BLE001 - retry any network/parse err
             last_err = err
             LOGGER.warning("Tile %s failed (attempt %d/%d via %s): %s",
