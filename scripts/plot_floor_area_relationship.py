@@ -147,8 +147,8 @@ def _write_scatterplot(points: pd.DataFrame, output_path: Path) -> None:
         if subset.empty:
             continue
         ax.scatter(
-            subset["footprint_area_m2"],
             subset["floors"],
+            subset["footprint_area_m2"],
             s=10 if source == "OSM" else 36,
             alpha=0.45 if source == "OSM" else 0.85,
             color=colors[source],

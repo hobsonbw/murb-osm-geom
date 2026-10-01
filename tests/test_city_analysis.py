@@ -431,6 +431,12 @@ class CityAnalysisTests(unittest.TestCase):
                 self.assertEqual(axis.get_xlabel(), "Number of floors")
                 self.assertEqual(axis.get_ylabel(), "Footprint area (m$^2$)")
                 self.assertEqual(
+                    axis.collections[0].get_offsets().tolist(), [[4, 700]]
+                )
+                self.assertEqual(
+                    axis.collections[1].get_offsets().tolist(), [[8, 1200]]
+                )
+                self.assertEqual(
                     tuple(axis.collections[0].get_facecolors()[0][:3]),
                     (0, 0, 0),
                 )
