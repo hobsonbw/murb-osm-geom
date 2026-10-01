@@ -70,6 +70,7 @@ HEIGHT_AXIS_SETTINGS = {
         "bin_width": 4,
         "bin_start": 0.5,
         "bin_labels": True,
+        "bin_label_offset": 0.5,
     },
     "Building height (m)": {
         "bin_width": 12,
@@ -271,6 +272,7 @@ def _write_histogram(
     bin_width: float | None = None,
     bin_start: float = 0.0,
     bin_labels: bool = False,
+    bin_label_offset: float = 0.0,
     x_ticks: tuple[float, ...] | None = None,
     x_limits: tuple[float, float] | None = None,
 ) -> None:
@@ -287,11 +289,11 @@ def _write_histogram(
     )
     if bin_labels:
         tick_positions = (bin_edges[:-1] + bin_edges[1:]) / 2
-        lower_floors = (bin_edges[:-1] + 0.5).round().astype(int)
-        upper_floors = (bin_edges[1:] - 0.5).round().astype(int)
+        lower_edges = bin_edges[:-1] + bin_label_offset
+        upper_edges = bin_edges[1:] - bin_label_offset
         tick_labels = [
-            f"{lower}-{upper}"
-            for lower, upper in zip(lower_floors, upper_floors)
+            f"{format(lower, 'g')}-{format(upper, 'g')}"
+            for lower, upper in zip(lower_edges, upper_edges)
         ]
         ax.set_xticks(tick_positions, tick_labels, rotation=45)
     elif bin_width is None:
@@ -307,6 +309,7 @@ def _write_histogram(
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Number of buildings")
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax.grid(axis="y", alpha=0.3)
     ax.set_axisbelow(True)
     fig.tight_layout()

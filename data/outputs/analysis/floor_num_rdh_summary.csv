@@ -1,0 +1,7 @@
+Climate Zone,Minimum Number of floors,5th percentile Number of floors,50th percentile Number of floors,95th percentile Number of floors,Maximum Number of floors
+4,4,4.400000,6.000000,28.400000,29
+5,5,5.250000,8.000000,18.750000,22
+6,3,3.900000,10.000000,33.300000,36
+7,4,4.000000,6.000000,28.450000,40
+8,2,2.000000,3.000000,5.100000,6
+All,2,2.000000,6.000000,30.600000,40

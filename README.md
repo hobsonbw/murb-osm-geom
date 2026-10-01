@@ -153,6 +153,58 @@ contribute to `All`.
 Use `--input-dir` and `--output-dir` to analyze a different set of CSVs without
 overwriting these results.
 
+## OSM and RDH area/floors comparison
+
+Compare Part 3 OSM buildings with RDH consultant records using a square
+scatterplot of footprint/floor-plate area against floors/storeys:
+
+```powershell
+python scripts/plot_floor_area_relationship.py
+```
+
+The output is `data/outputs/analysis/floor_area_vs_floors.svg`, with floors on
+the x-axis and area on the y-axis. OSM points use configured cities and the
+Part 3 filter, and require explicit `height_m` and `levels` with a 2–6 m
+floor-height ratio; this gives 133 records before trimming. Consultant points
+require a nonblank climate zone and positive storey and floor-plate values.
+Points outside the pooled 0.3rd–99.7th percentile ranges on either axis are
+omitted. Source-specific colors and plotted counts appear in the legend.
+Override `--osm-dir`, `--rdh-csv`, or `--output` to use other inputs or an
+output path.
+
+## OSM and consultant shape comparison
+
+Generate a two-panel count plot of approximate shape categories with:
+
+```powershell
+python scripts/plot_shape_comparison.py
+```
+
+The output is `data/outputs/analysis/shape_comparison.svg`. OSM `Rectangle` and
+`Slab` map to `Rectangular`; `Square` and `Tower` map to `Square`; L-shapes are
+combined, U- and C-shapes are grouped as `U/C-shaped`, and `Courtyard` remains
+separate. Remaining labels map to `Other / Irregular`. Panels have separate
+count scales to keep the
+smaller consultant sample visible. Only configured OSM cities and RDH rows
+with a climate zone are included.
+
+## RDH consultant analysis
+
+Generate climate-zone summaries and square histograms for the consultant
+dataset with:
+
+```powershell
+python scripts/analyze_rdh.py
+```
+
+Outputs use the `_rdh` suffix, such as `floor_num_rdh.svg` and
+`floor_num_rdh_summary.csv`. WWR outputs are named
+`wwr_<orientation>_rdh.svg` and `wwr_<orientation>_rdh_summary.csv`; their
+histograms use 5% bins and ticks from 0–70%. The footprint-area histogram spans
+0–6000 m² with 500 m² bins labeled by their ranges. Histograms are pooled across climate zones; summary
+tables include one row per climate zone and an `All` row. Blank climate-zone
+records are excluded, and zones `7A` and `7B` are combined under `7`.
+
 ## Configuration
 
 All tunable parameters live in [config/settings.yaml](config/settings.yaml):

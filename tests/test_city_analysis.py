@@ -8,12 +8,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 
+from scripts.analyze_rdh import RDH_METRICS, main as analyze_rdh
 from scripts.plot_footprint_area_by_city import (
     LOCATIONS,
     _summarize,
     _write_histogram,
     main,
 )
+from scripts.plot_floor_area_relationship import (
+    _load_comparison_data,
+    _trim_percentiles,
+    _write_scatterplot,
+)
+from scripts.plot_shape_comparison import _load_shape_counts
 
 
 class CityAnalysisTests(unittest.TestCase):
@@ -175,6 +182,14 @@ class CityAnalysisTests(unittest.TestCase):
                     x_limits=(0, 204),
                 )
                 building_height_axis = plt.gcf().axes[0]
+                self.assertTrue(all(
+                    float(tick).is_integer()
+                    for tick in building_height_axis.get_yticks()
+                ))
+                self.assertTrue(all(
+                    label.get_text().isdigit()
+                    for label in building_height_axis.get_yticklabels()
+                ))
                 self.assertEqual(
                     [round(patch.get_width(), 6) for patch in building_height_axis.patches],
                     [12.0] * 17,
@@ -231,6 +246,7 @@ class CityAnalysisTests(unittest.TestCase):
                     bin_width=4,
                     bin_start=0.5,
                     bin_labels=True,
+                    bin_label_offset=0.5,
                 )
                 floor_num_axis = plt.gcf().axes[0]
                 self.assertEqual(
@@ -245,6 +261,215 @@ class CityAnalysisTests(unittest.TestCase):
                     ["1-4", "5-8", "9-12", "13-16"],
                 )
                 self.assertEqual(floor_num_axis.get_box_aspect(), 1)
+
+    def test_rdh_outputs_group_by_climate_zone_and_parse_metric_formats(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "rdh.csv"
+            output_dir = Path(directory) / "output"
+            data = {
+                "Climate Zone": ["6", "7A", "7B", "", "4"],
+                "Building Storeys": ["6", "10", "14", "18", "22"],
+                "Building Height (m)": ["20", "30", "45", "50", "60"],
+                "Typical/Tower Floor Plate Area (m2)": [
+                    "1,000", "1,200", "1,400", "1,600", "1,800",
+                ],
+                "VFAR (Vertical Surface Area to Floor Area Ratio)": [
+                    "0.3", "0.5", "0.7", "0.9", "0.4",
+                ],
+                "Overall WWR": ["30%", "40%", "50%", "60%", "20%"],
+                "North WWR": ["25%", "35%", "45%", "55%", "15%"],
+                "East WWR": ["20%", "30%", "40%", "50%", "10%"],
+                "South WWR": ["35%", "45%", "55%", "65%", "25%"],
+                "West WWR": ["30%", "40%", "50%", "60%", "20%"],
+            }
+            pd.DataFrame(data).to_csv(input_path, index=False)
+            output_dir.mkdir()
+            for orientation in ("overall", "north", "east", "south", "west"):
+                (output_dir / f"{orientation}_wwr_rdh.svg").write_text(
+                    "old WWR chart", encoding="utf-8"
+                )
+                (output_dir / f"{orientation}_wwr_rdh_summary.csv").write_text(
+                    "old WWR summary", encoding="utf-8"
+                )
+
+            with patch.object(sys, "argv", [
+                "analyze_rdh", "--input-csv", str(input_path),
+                "--output-dir", str(output_dir),
+            ]), patch(
+                "scripts.analyze_rdh._write_histogram", wraps=_write_histogram
+            ) as write_histogram:
+                self.assertEqual(analyze_rdh(), 0)
+
+            for _, metric_stem, _ in RDH_METRICS:
+                plot_stem = (
+                    f"wwr_{metric_stem.removesuffix('_wwr')}"
+                    if metric_stem.endswith("_wwr")
+                    else metric_stem
+                )
+                summary_path = output_dir / f"{plot_stem}_rdh_summary.csv"
+                plot_path = output_dir / f"{plot_stem}_rdh.svg"
+                self.assertTrue(summary_path.exists())
+                self.assertTrue(plot_path.exists())
+                summary = pd.read_csv(summary_path)
+                self.assertEqual(summary["Climate Zone"].tolist(), ["4", "6", "7", "All"])
+            for orientation in ("overall", "north", "east", "south", "west"):
+                self.assertFalse((output_dir / f"{orientation}_wwr_rdh.svg").exists())
+                self.assertFalse(
+                    (output_dir / f"{orientation}_wwr_rdh_summary.csv").exists()
+                )
+
+            floor_summary = pd.read_csv(output_dir / "floor_num_rdh_summary.csv")
+            zone_7 = floor_summary.set_index("Climate Zone").loc["7"]
+            self.assertEqual(zone_7["50th percentile Number of floors"], 12)
+            self.assertEqual(
+                floor_summary.iloc[-1]["Maximum Number of floors"], 22
+            )
+            area_summary = pd.read_csv(output_dir / "footprint_area_rdh_summary.csv")
+            self.assertEqual(area_summary.iloc[-1]["Minimum Footprint area (m2)"], 1000)
+            area_call = write_histogram.call_args_list[2]
+            self.assertEqual(area_call.args[1], "Footprint Area Distribution")
+            self.assertEqual(area_call.args[2], "Footprint area (m$^2$)")
+            self.assertEqual(area_call.kwargs["bin_width"], 500)
+            self.assertEqual(area_call.kwargs["x_limits"], (0, 6000))
+            self.assertTrue(area_call.kwargs["bin_labels"])
+            self.assertEqual(area_call.kwargs["bin_label_offset"], 0)
+            self.assertEqual(
+                [call.args[1] for call in write_histogram.call_args_list],
+                [
+                    "Number of Floors Distribution",
+                    "Building Height Distribution",
+                    "Footprint Area Distribution",
+                    "VFAR Distribution",
+                    "Overall WWR Distribution",
+                    "North WWR Distribution",
+                    "East WWR Distribution",
+                    "South WWR Distribution",
+                    "West WWR Distribution",
+                ],
+            )
+            area_plot = (output_dir / "footprint_area_rdh.svg").read_text(encoding="utf-8")
+            self.assertNotIn("RDH", area_plot)
+            self.assertIn("6000", area_plot)
+            self.assertIn("0-500", area_plot)
+            self.assertIn("500-1000", area_plot)
+            for orientation in ("overall", "north", "east", "south", "west"):
+                wwr_plot = (output_dir / f"wwr_{orientation}_rdh.svg").read_text(
+                    encoding="utf-8"
+                )
+                self.assertNotIn("RDH", wwr_plot)
+                wwr_call = write_histogram.call_args_list[
+                    ("overall", "north", "east", "south", "west").index(orientation) + 4
+                ]
+                self.assertEqual(wwr_call.kwargs["bin_width"], 5)
+                self.assertEqual(wwr_call.kwargs["bin_start"], 0)
+                self.assertEqual(wwr_call.kwargs["x_limits"], (0, 70))
+                self.assertEqual(wwr_call.kwargs["x_ticks"], tuple(range(0, 71, 5)))
+            vfar_plot = (output_dir / "VFAR_rdh.svg").read_text(encoding="utf-8")
+            self.assertIn("VFAR", vfar_plot)
+            self.assertNotIn("RDH", vfar_plot)
+
+    def test_osm_and_rdh_floor_area_scatterplot_pairs_correct_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            osm_dir = root / "osm"
+            osm_dir.mkdir()
+            output_path = root / "floor_area_vs_floors.svg"
+            pd.DataFrame({
+                "murb_confidence": [0.9, 0.9, 0.2],
+                "height_m": [12, 15, 12],
+                "height_est_m": [12, 15, 12],
+                "levels": [4, "", 4],
+                "levels_est": [4, 5, 4],
+                "footprint_area_m2": [700, 900, 800],
+            }).to_csv(osm_dir / "calgary_murbs.csv", index=False)
+            pd.DataFrame({
+                "murb_confidence": [0.9],
+                "height_m": [12],
+                "height_est_m": [12],
+                "levels": [4],
+                "levels_est": [4],
+                "footprint_area_m2": [1000],
+            }).to_csv(osm_dir / "ottawa_murbs.csv", index=False)
+            rdh_path = root / "rdh.csv"
+            pd.DataFrame({
+                "Climate Zone": ["6", ""],
+                "Building Storeys": [8, 10],
+                "Building Height (m)": [24, 30],
+                "Typical/Tower Floor Plate Area (m2)": [1200, 1400],
+                "VFAR (Vertical Surface Area to Floor Area Ratio)": [0.5, 0.7],
+                "Overall WWR": ["40%", "50%"],
+                "North WWR": ["35%", "45%"],
+                "East WWR": ["30%", "40%"],
+                "South WWR": ["45%", "55%"],
+                "West WWR": ["40%", "50%"],
+            }).to_csv(rdh_path, index=False)
+
+            points = _load_comparison_data(osm_dir, rdh_path)
+            self.assertEqual(len(points), 2)
+            osm_points = points.loc[points["source"].eq("OSM")]
+            self.assertEqual(osm_points["footprint_area_m2"].tolist(), [700])
+            self.assertEqual(osm_points["floors"].tolist(), [4])
+            consultants_point = points.loc[points["source"].eq("Consultants")].iloc[0]
+            self.assertEqual(consultants_point["footprint_area_m2"], 1200)
+            self.assertEqual(consultants_point["floors"], 8)
+
+            tail_data = pd.DataFrame({
+                "footprint_area_m2": range(1, 1001),
+                "floors": range(1, 1001),
+                "source": "OSM",
+            })
+            trimmed = _trim_percentiles(tail_data)
+            self.assertEqual(len(trimmed), 994)
+            self.assertEqual(trimmed["floors"].min(), 4)
+            self.assertEqual(trimmed["floors"].max(), 997)
+
+            self.addCleanup(plt.close, "all")
+            with patch("scripts.plot_floor_area_relationship.plt.close"):
+                _write_scatterplot(points, output_path)
+                axis = plt.gcf().axes[0]
+                self.assertEqual(axis.get_box_aspect(), 1)
+                self.assertEqual(axis.get_xlabel(), "Number of floors")
+                self.assertEqual(axis.get_ylabel(), "Footprint area (m$^2$)")
+                self.assertEqual(
+                    tuple(axis.collections[0].get_facecolors()[0][:3]),
+                    (0, 0, 0),
+                )
+                self.assertEqual(
+                    [text.get_text() for text in axis.get_legend().get_texts()],
+                    ["OSM (n=1)", "Consultants (n=1)"],
+                )
+            plot = output_path.read_text(encoding="utf-8")
+            self.assertIn("Number of Floors vs. Footprint Area", plot)
+
+    def test_shape_comparison_maps_osm_and_consultant_labels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            osm_dir = root / "osm"
+            osm_dir.mkdir()
+            pd.DataFrame({
+                "shape_class": [
+                    "Rectangle", "Slab", "Square", "Tower", "L", "U",
+                    "Courtyard", "Irregular",
+                ],
+            }).to_csv(osm_dir / "calgary_murbs.csv", index=False)
+            rdh_path = root / "rdh.csv"
+            pd.DataFrame({
+                "Climate Zone": ["6", "6", "6", "6", "6", ""],
+                "Building Shape": [
+                    "Rectangular", "Square", "L-Shape", "U-Shape", "C-Shape", "Other",
+                ],
+            }).to_csv(rdh_path, index=False)
+
+            counts = _load_shape_counts(osm_dir, rdh_path)
+            self.assertEqual(counts.loc["Rectangular", "OSM"], 2)
+            self.assertEqual(counts.loc["Square", "OSM"], 2)
+            self.assertEqual(counts.loc["L-shaped", "OSM"], 1)
+            self.assertEqual(counts.loc["U/C-shaped", "OSM"], 1)
+            self.assertEqual(counts.loc["Courtyard", "OSM"], 1)
+            self.assertEqual(counts.loc["Other / Irregular", "OSM"], 1)
+            self.assertEqual(counts["Consultants"].sum(), 5)
+            self.assertEqual(counts.loc["U/C-shaped", "Consultants"], 2)
+            self.assertEqual(counts.loc["Courtyard", "Consultants"], 0)
 
     def test_location_order_missing_cities_and_pooled_metrics(self):
         with tempfile.TemporaryDirectory() as directory:
