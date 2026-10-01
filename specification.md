@@ -319,6 +319,7 @@ perimeter_m
 
 length_m
 width_m
+average_depth_m
 aspect_ratio
 
 height_m

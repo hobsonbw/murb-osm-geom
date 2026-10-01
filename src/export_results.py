@@ -24,6 +24,7 @@ OUTPUT_COLUMNS: list[str] = [
     "perimeter_m",
     "length_m",
     "width_m",
+    "average_depth_m",
     "aspect_ratio",
     "height_m",
     "height_est_m",

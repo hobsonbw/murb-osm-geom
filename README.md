@@ -123,18 +123,33 @@ was ~113 MB for ~2,800 MURBs).
 
 ## City analysis
 
-After exporting city CSVs, regenerate the Part 3 footprint plot and tables:
+After exporting city CSVs, regenerate the Part 3 footprint, geometry, and height
+plots and tables:
 
 ```powershell
 python scripts/plot_footprint_area_by_city.py
 ```
 
 The script reads `data/outputs/*_murb.csv` and `*_murbs.csv` and writes
-`data/outputs/analysis/footprint_area.svg`, `sample_size.csv`,
-`footprint_area_summary.csv`, and `height.csv`. It includes the configured
-locations in a fixed order, with zero rows for cities without data and an
-aggregate `All` row. The plot omits individual cities with fewer than 10 valid
-Part 3 footprints, but their buildings still contribute to `All`.
+`data/outputs/analysis/footprint_area.svg`, `length.svg`, `width.svg`,
+`average_depth.svg`, `aspect_ratio.svg`, `rectangularity.svg`, `sample_size.csv`,
+`footprint_area_summary.csv`, `length_summary.csv`, `width_summary.csv`,
+`average_depth_summary.csv`, `aspect_ratio_summary.csv`, `rectangularity_summary.csv`,
+`floor_height.csv`, `floor_num.csv`, and `build_height.csv`. Height
+distributions are also written as pooled histograms in `floor_height.svg`,
+`floor_num.svg`, and `build_height.svg`; unlike the geometry boxplots, these
+combine eligible data across configured cities into one distribution per metric.
+Floor-height bins and ticks run from 2 to 6 m in 0.25 m increments;
+building-height bins and ticks run from 0 to 204 m in 12 m increments.
+Floor-count bins span four storeys and are labeled by their ranges. All three
+histogram plotting areas are square.
+The geometry plots and tables summarize `length_m`, `width_m`, `average_depth_m`,
+`aspect_ratio`, and `rectangularity` for the same Part 3 MURB cohort as the
+footprint output.
+Tables include configured locations in a fixed order, zero rows for cities
+without data, and an aggregate `All` row. Each plot omits individual cities
+with fewer than 10 valid values for that metric, but their buildings still
+contribute to `All`.
 Use `--input-dir` and `--output-dir` to analyze a different set of CSVs without
 overwriting these results.
 
@@ -174,7 +189,7 @@ CSV output columns (the GeoPackage and GeoJSON use `geometry` instead of
 ```
 osmid, building_type, murb_confidence, murb_reason,
 footprint_area_m2, perimeter_m,
-length_m, width_m, aspect_ratio,
+length_m, width_m, average_depth_m, aspect_ratio,
 height_m, height_est_m, height_source,
 levels, levels_est, levels_source,
 gross_floor_area_est_m2,
