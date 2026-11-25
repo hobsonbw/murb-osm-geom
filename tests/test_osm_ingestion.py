@@ -144,6 +144,27 @@ class OsmIngestionTests(unittest.TestCase):
         self.assertEqual(extracted.geom_type.tolist(), ["MultiPolygon", "MultiPolygon"])
         self.assertTrue(extracted.is_valid.all())
 
+    def test_boundary_only_intersection_is_not_written_as_a_building_area(self):
+        osm_path = Path(self.directory.name) / "touching.osm"
+        osm_path.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6">
+  <node id="1" lat="51.00" lon="-114.00"/>
+  <node id="2" lat="51.00" lon="-113.99"/>
+  <node id="3" lat="51.01" lon="-113.99"/>
+  <node id="4" lat="51.01" lon="-114.00"/>
+  <way id="100">
+    <nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="4"/><nd ref="1"/>
+    <tag k="building" v="apartments"/>
+  </way>
+</osm>""", encoding="utf-8")
+        output_dir = Path(self.directory.name) / "touching_extracted"
+        output_dir.mkdir()
+        counts = _extract_city_buildings(
+            osm_path, {"city": box(-114.01, 51.01, -113.98, 51.02)}, output_dir,
+        )
+        self.assertEqual(counts, {"city": 0})
+        self.assertFalse((output_dir / "city_buildings.gpkg").exists())
+
     def test_gdal_area_loading_restores_tags_and_clips(self):
         # XML and PBF share GDAL's OSM driver, schema, and SQL tag extraction.
         osm_path = Path(self.directory.name) / "buildings.osm"

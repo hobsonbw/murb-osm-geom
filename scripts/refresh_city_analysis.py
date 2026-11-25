@@ -71,7 +71,7 @@ def _extract_city_buildings(
                 indices = buildings.sindex.query(polygon, predicate="intersects")
                 if len(indices) == 0:
                     continue
-                clipped = buildings.iloc[indices].clip(polygon)
+                clipped = _clean_geometries(buildings.iloc[indices].clip(polygon))
                 if clipped.empty:
                     continue
                 path = output_dir / f"{city}_buildings.gpkg"
