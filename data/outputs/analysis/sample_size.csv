@@ -1,15 +1,15 @@
 Locations,Possible MURBs,Likely MURBs,Part 3 MURBs,Part 3 MURBs with Height
-"Calgary, AB",11036,262,141,2
-"Vancouver, BC",6960,3892,2388,84
-"Winnipeg, MB",3374,2409,1018,24
+"Calgary, AB",59335,2830,1612,166
+"Vancouver, BC",7022,3960,2434,85
+"Winnipeg, MB",3427,2453,1042,24
 "Saint John, NB",780,237,52,0
-"St. John’s, NL",245,116,68,0
+"St. John’s, NL",301,132,84,0
 "Yellowknife, NT",3724,100,48,0
-"Halifax, NS",1802,1296,383,0
+"Halifax, NS",1794,1293,377,0
 "Iqaluit, NU",8,7,4,0
-"Toronto, ON",6327,4449,2481,23
-"Charlottetown, PE",2115,54,28,0
-"Montreal, QC",0,0,0,0
-"Saskatoon, SK",0,0,0,0
-"Whitehorse, YT",0,0,0,0
-All,36371,12822,6611,133
+"Toronto, ON",10409,7603,4639,36
+"Charlottetown, PE",2944,182,69,0
+"Montreal, QC",42024,21463,2691,43
+"Saskatoon, SK",1193,1092,481,23
+"Whitehorse, YT",50,44,26,0
+All,133011,41396,13559,377

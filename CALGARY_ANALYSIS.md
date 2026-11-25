@@ -162,7 +162,8 @@ calculated from this checkpoint with:
 ```
 
 This basename writes separate exports rather than replacing the original
-Calgary files. The cohort measurement did not regenerate the city plots.
+Calgary files. The initial cohort measurement did not regenerate the city
+plots; the subsequent full refresh below did.
 
 ## Comparison with the Saved Overpass Output
 
@@ -190,6 +191,73 @@ Snapshot dates, previous acquisition coverage, and tag changes would need
 separate comparison. The evidence does **not** support the former claims that
 PBF contains only a curated subset, omits ordinary ways, or strips height tags.
 
+## Full 13-City Refresh
+
+The canonical city exports, cohort tables, and OSM plots have now been
+regenerated for the 13 configured analysis cities from
+`canada-261122.osm.pbf`. Ottawa was intentionally excluded and its existing
+export was left unchanged.
+
+The old committed analysis is retained by the local Git tag
+`overpass-analysis-baseline` at commit `6693f0a`. New workflow changes and
+results are on branch `pbf-analysis-refresh`, in separate commits.
+The baseline city CSVs were checked against its sample-size table before
+comparison; they are internally consistent.
+
+| Cohort, all configured cities | Baseline | New PBF | Change |
+|------------------------------|---------:|--------:|-------:|
+| Possible MURBs | 36,371 | 133,011 | +96,640 |
+| Likely MURBs | 12,822 | 41,396 | +28,574 |
+| Part 3 candidates | 6,611 | 13,559 | +6,948 |
+| Height-analysis subset | 133 | 377 | +244 |
+
+The largest Part 3 increases are Calgary (+1,471), Toronto (+2,158), and the
+newly populated Montreal (+2,691), Saskatoon (+481), and Whitehorse (+26)
+outputs. Zero baseline counts for those last three cities mean no records were
+available in that analysis, not that they had no MURBs.
+
+Outputs:
+
+- [`sample_size.csv`](data/outputs/analysis/sample_size.csv): current cohorts
+  for every configured city and the aggregate.
+- [`cohort_comparison.csv`](data/outputs/analysis/cohort_comparison.csv):
+  baseline/current counts and changes in the same city order.
+- [`pbf_refresh_manifest.json`](data/outputs/analysis/pbf_refresh_manifest.json):
+  source filename and SHA-256, the workflow revision used for generation,
+  city list, acquisition counts, and shape-cohort selection.
+- Canonical `<city>_murbs.csv` exports under `data/outputs/`, plus local
+  GeoPackage/GeoJSON exports and checkpoints.
+- Refreshed geometry/height figures, floor-area/floors comparison, and
+  shape comparison under `data/outputs/analysis/`.
+
+**Intentional rule change:** OSM shape comparison now uses the same Part 3
+mask as geometry plots. The old shape figure used all Possible MURBs, so its
+shape counts are not a dataset-only, like-for-like comparison. Other selection
+thresholds are unchanged; consultant-only figures/data are unchanged.
+
+The shape figure contains **13,559 OSM Part 3 candidates**. Height histograms
+use **377** records; the floor-area/floors scatter contains **371 OSM records**
+after its additional pooled percentile trimming. Average-depth summaries use
+**13,545 valid Part 3 depths**; the existing calculation still excludes
+genuinely multipart polygons. Singleton MultiPolygons from GDAL are now
+handled like their equivalent Polygons (Calgary has 1,610 valid depths among
+1,612 Part 3 candidates).
+
+All 13 CSV/GeoPackage/GeoJSON/checkpoint row counts, nine pooled summary tables,
+and 11 SVGs were verified. The refresh required one streaming source read and
+bounded two-process geometry calculations. A Winnipeg topology error exposed
+the need to repair invalid areas before clipping; the existing repair policy
+was reused rather than skipping failed features. Later batch-format safeguards
+promote polygonal areas to conformant MultiPolygon layers and exclude
+boundary-only line/point intersections before temporary serialization; these
+do not change the final candidate cohort.
+
+The generation manifest records revision `33380d5`. Subsequent batch-format
+hardening and comparison-row ordering were committed separately. Large local
+PBF/intermediate/binary files remain excluded from Git under the existing
+repository rules; city CSVs, analysis outputs, and this report are retained
+in the results commit. No branch or tag has been pushed.
+
 ## Changes and Validation
 
 - `src/download_osm.py` reads the actual GDAL `multipolygons` area layer,
@@ -210,9 +278,10 @@ PBF contains only a curated subset, omits ordinary ways, or strips height tags.
 - Existing Part 3 minimum-footprint regression passed. Both the saved corrected
   checkpoint and the cohort-count CSV were read back and verified.
 
-The audit did **not** overwrite the original Calgary exports or checkpoints.
-Those files still represent the broken 32-record run. Regenerate from the
-PBF, without `--from-checkpoint`, to replace them:
+The initial Calgary-only audit did **not** overwrite the original exports or
+checkpoints. The later full refresh has now replaced the broken 32-record
+canonical Calgary run and regenerated its analysis. To rebuild a single city
+from the PBF rather than a checkpoint:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_pipeline --city "Calgary, Alberta, Canada"

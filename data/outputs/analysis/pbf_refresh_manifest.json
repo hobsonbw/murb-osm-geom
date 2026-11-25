@@ -1,0 +1,38 @@
+{
+  "pbf_file": "canada-261122.osm.pbf",
+  "pbf_sha256": "bef5af4c87de8d139409420d3aff83714510542e8532040c5a38b730c65b23b4",
+  "workflow_commit": "33380d52c381a9c4d2c89b762a12299339b3a522",
+  "baseline": "overpass-analysis-baseline",
+  "cities": [
+    "calgary",
+    "vancouver",
+    "winnipeg",
+    "saintjohn",
+    "stjohns",
+    "yellowknife",
+    "halifax",
+    "iqaluit",
+    "toronto",
+    "charlottetown",
+    "montreal",
+    "saskatoon",
+    "whitehorse"
+  ],
+  "raw_building_counts": {
+    "calgary": 472995,
+    "vancouver": 138980,
+    "winnipeg": 225413,
+    "saintjohn": 31799,
+    "stjohns": 14225,
+    "yellowknife": 6489,
+    "halifax": 30141,
+    "iqaluit": 1517,
+    "toronto": 428280,
+    "charlottetown": 13563,
+    "montreal": 274566,
+    "saskatoon": 103756,
+    "whitehorse": 8464
+  },
+  "shape_cohort": "Part 3 MURBs",
+  "metric_workers": 2
+}
