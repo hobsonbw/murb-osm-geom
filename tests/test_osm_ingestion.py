@@ -7,7 +7,7 @@ import geopandas as gpd
 import numpy as np
 from shapely.geometry import MultiPolygon, box
 
-from scripts.refresh_city_analysis import _extract_city_buildings
+from scripts.refresh_city_analysis import _calculate_metrics, _extract_city_buildings
 from src.calculate_geometry import _calculate_average_depth
 from src.download_osm import _load_from_pbf
 from src.estimate_heights import estimate_heights
@@ -68,6 +68,19 @@ class OsmIngestionTests(unittest.TestCase):
             actual = _calculate_average_depth(MultiPolygon([polygon]))
         self.assertEqual(expected, 8.0)
         self.assertEqual(actual, expected)
+
+    def test_parallel_metrics_preserve_building_order_and_crs(self):
+        raw = gpd.GeoDataFrame(
+            {"osmid": ["first", "second"], "levels_est": [4, 3]},
+            geometry=[MultiPolygon([box(0, 0, 20, 10)]),
+                      MultiPolygon([box(30, 0, 40, 10)])],
+            crs="EPSG:3978",
+        )
+        calculated = _calculate_metrics(raw, workers=2, batch_size=1)
+        self.assertEqual(calculated.osmid.tolist(), ["first", "second"])
+        self.assertEqual(calculated.crs, raw.crs)
+        self.assertEqual(calculated.footprint_area_m2.tolist(), [200, 100])
+        self.assertTrue(calculated.average_depth_m.notna().all())
 
     def test_gdal_area_loading_restores_tags_and_clips(self):
         # XML and PBF share GDAL's OSM driver, schema, and SQL tag extraction.

@@ -9,6 +9,7 @@ import json
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import truststore
@@ -33,6 +34,18 @@ from src.utils import ensure_dir, get_logger, load_settings, project_root, resol
 
 
 LOGGER = get_logger()
+
+
+def _calculate_metrics(
+    gdf: gpd.GeoDataFrame, workers: int, batch_size: int = 1000,
+) -> gpd.GeoDataFrame:
+    if workers == 1:
+        return calculate_geometry(gdf)
+    chunks = (gdf.iloc[start:start + batch_size].copy()
+              for start in range(0, len(gdf), batch_size))
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        calculated = list(executor.map(calculate_geometry, chunks))
+    return gpd.GeoDataFrame(pd.concat(calculated), geometry="geometry", crs=gdf.crs)
 
 
 def _extract_city_buildings(
@@ -91,7 +104,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--baseline", default="overpass-analysis-baseline")
+    parser.add_argument("--workers", type=int, default=2)
     args = parser.parse_args()
+    if args.workers < 1:
+        parser.error("--workers must be at least 1")
+    subprocess.run(
+        ["git", "rev-parse", "--verify", f"{args.baseline}^{{commit}}"],
+        cwd=project_root(), check=True, stdout=subprocess.DEVNULL,
+    )
     settings = load_settings(args.config)
     configured_pbf = settings["acquisition"].get("pbf_path", "").strip()
     if not configured_pbf:
@@ -137,7 +157,7 @@ def main() -> int:
             if murbs.empty:
                 raise RuntimeError(f"No possible MURBs for {label}; refusing stale exports")
             murbs.to_file(processed_dir / f"{basename}_checkpoint.gpkg", driver="GPKG")
-            murbs = classify_shapes(calculate_geometry(murbs), settings)
+            murbs = classify_shapes(_calculate_metrics(murbs, args.workers), settings)
             export_results(murbs, settings, basename)
             del murbs
 
@@ -169,6 +189,7 @@ def main() -> int:
         "cities": list(LOCATIONS),
         "raw_building_counts": counts,
         "shape_cohort": "Part 3 MURBs",
+        "metric_workers": args.workers,
     }
     (analysis_dir / "pbf_refresh_manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8",

@@ -75,6 +75,8 @@ are unchanged. In addition to `sample_size.csv`, it writes
 `data/outputs/analysis/cohort_comparison.csv` and a source-checksum/workflow
 manifest, `pbf_refresh_manifest.json`. Access the old outputs through the
 baseline tag. Do not recreate an existing baseline tag on a later commit.
+Geometry calculations use two worker processes by default; pass `--workers 1`
+to run serially on a resource-constrained machine.
 
 ## Fast iteration on metrics
 
