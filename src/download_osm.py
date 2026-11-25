@@ -22,6 +22,7 @@ from osmnx._errors import InsufficientResponseError
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
+from .preprocess import _clean_geometries
 from .utils import ensure_dir, get_logger, resolve_path
 
 
@@ -165,7 +166,7 @@ def _load_from_pbf(
         bbox=boundary_polygon.bounds,
     )
     LOGGER.info("Read %d building areas intersecting study area bounding box", len(gdf))
-    gdf = gdf.clip(boundary_polygon)
+    gdf = _clean_geometries(gdf).clip(boundary_polygon)
 
     if gdf.empty:
         LOGGER.warning("No buildings remain after clipping to study area")

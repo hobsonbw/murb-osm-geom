@@ -48,6 +48,8 @@ not by `acquisition.method`.
 GDAL's `multipolygons` layer contains both closed building ways and
 multipolygon relations. The loader clips these areas to the city boundary and
 expands height, level, flat-count, and house-number tags from `other_tags`.
+Invalid polygonal areas are repaired before clipping so topology errors do not
+prevent acquisition.
 Preprocessing maps `osm_way_id` for ways and `osm_id` for relations to
 `(element_type, osmid)` so distinct buildings are not discarded as duplicates.
 Country-sized PBF files can still take many minutes to read; prefer regional

@@ -29,7 +29,7 @@ from src.download_osm import PBF_BUILDING_SQL, get_boundary
 from src.estimate_heights import estimate_heights
 from src.export_results import export_results
 from src.identify_murbs import identify_murbs
-from src.preprocess import preprocess
+from src.preprocess import _clean_geometries, preprocess
 from src.utils import ensure_dir, get_logger, load_settings, project_root, resolve_path
 
 
@@ -66,7 +66,7 @@ def _extract_city_buildings(
             geometry = gpd.GeoSeries.from_wkb(
                 frame.pop(geometry_column), crs=metadata["crs"],
             )
-            buildings = gpd.GeoDataFrame(frame, geometry=geometry)
+            buildings = _clean_geometries(gpd.GeoDataFrame(frame, geometry=geometry))
             for city, polygon in boundaries.items():
                 indices = buildings.sindex.query(polygon, predicate="intersects")
                 if len(indices) == 0:

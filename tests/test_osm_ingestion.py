@@ -82,6 +82,30 @@ class OsmIngestionTests(unittest.TestCase):
         self.assertEqual(calculated.footprint_area_m2.tolist(), [200, 100])
         self.assertTrue(calculated.average_depth_m.notna().all())
 
+    def test_invalid_osm_polygon_is_repaired_before_clipping(self):
+        osm_path = Path(self.directory.name) / "invalid.osm"
+        osm_path.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6">
+  <node id="1" lat="51.00" lon="-114.00"/>
+  <node id="2" lat="51.02" lon="-113.98"/>
+  <node id="3" lat="51.02" lon="-114.00"/>
+  <node id="4" lat="51.00" lon="-113.98"/>
+  <way id="100">
+    <nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="4"/><nd ref="1"/>
+    <tag k="building" v="apartments"/>
+  </way>
+</osm>""", encoding="utf-8")
+        boundary = box(-114.005, 51.005, -113.985, 51.015)
+        raw = _load_from_pbf(osm_path, boundary)
+        self.assertEqual(len(raw), 1)
+        self.assertTrue(raw.is_valid.all())
+        output_dir = Path(self.directory.name) / "invalid_extracted"
+        output_dir.mkdir()
+        counts = _extract_city_buildings(osm_path, {"city": boundary}, output_dir)
+        self.assertEqual(counts, {"city": 1})
+        extracted = gpd.read_file(output_dir / "city_buildings.gpkg")
+        self.assertTrue(extracted.is_valid.all())
+
     def test_gdal_area_loading_restores_tags_and_clips(self):
         # XML and PBF share GDAL's OSM driver, schema, and SQL tag extraction.
         osm_path = Path(self.directory.name) / "buildings.osm"

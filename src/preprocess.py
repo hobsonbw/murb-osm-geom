@@ -49,17 +49,9 @@ def _osmid_column(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return gdf
 
 
-def preprocess(gdf: gpd.GeoDataFrame, settings: dict[str, Any]) -> gpd.GeoDataFrame:
-    if gdf.empty:
-        LOGGER.warning("Preprocess called on empty GeoDataFrame")
-        return gdf
-
-    working_crs = settings["crs"]["working"]
-    processed_dir = ensure_dir(resolve_path(settings["paths"]["processed_dir"]))
-
+def _clean_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Remove unusable geometries and repair areas before spatial operations."""
     n0 = len(gdf)
-    gdf = _osmid_column(gdf)
-
     # Drop null / empty geometries.
     gdf = gdf[gdf.geometry.notna() & ~gdf.geometry.is_empty].copy()
     LOGGER.info("Dropped %d null/empty geometries", n0 - len(gdf))
@@ -80,6 +72,17 @@ def preprocess(gdf: gpd.GeoDataFrame, settings: dict[str, Any]) -> gpd.GeoDataFr
         # make_valid can return GeometryCollection; keep only polygonal parts.
         gdf["geometry"] = gdf["geometry"].apply(_coerce_to_polygonal)
         gdf = gdf[gdf.geometry.notna() & ~gdf.geometry.is_empty].copy()
+    return gdf
+
+
+def preprocess(gdf: gpd.GeoDataFrame, settings: dict[str, Any]) -> gpd.GeoDataFrame:
+    if gdf.empty:
+        LOGGER.warning("Preprocess called on empty GeoDataFrame")
+        return gdf
+
+    working_crs = settings["crs"]["working"]
+    processed_dir = ensure_dir(resolve_path(settings["paths"]["processed_dir"]))
+    gdf = _clean_geometries(_osmid_column(gdf))
 
     # Way and relation IDs occupy separate OSM namespaces.
     if gdf["osmid"].isna().any() or gdf["osmid"].astype(str).str.strip().eq("").any():
