@@ -16,20 +16,14 @@ if __package__:
     from .analyze_rdh import DEFAULT_INPUT, _load_rdh
     from .plot_footprint_area_by_city import (
         LOCATIONS,
-        PART_3_FLOOR_AREA_M2,
-        PART_3_MIN_AREA_M2,
-        PART_3_MIN_STOREYS,
-        STOREY_HEIGHT_M,
+        _part_3_mask,
     )
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from scripts.analyze_rdh import DEFAULT_INPUT, _load_rdh
     from scripts.plot_footprint_area_by_city import (
         LOCATIONS,
-        PART_3_FLOOR_AREA_M2,
-        PART_3_MIN_AREA_M2,
-        PART_3_MIN_STOREYS,
-        STOREY_HEIGHT_M,
+        _part_3_mask,
     )
 
 
@@ -79,22 +73,10 @@ def _load_osm_points(input_dir: Path) -> pd.DataFrame:
         seen_cities.add(city)
 
         frame = pd.read_csv(csv_path)
-        confidence = pd.to_numeric(frame["murb_confidence"], errors="coerce")
         area = pd.to_numeric(frame["footprint_area_m2"], errors="coerce")
         levels = pd.to_numeric(frame["levels"], errors="coerce")
-        estimated_levels = pd.to_numeric(frame["levels_est"], errors="coerce")
         height = pd.to_numeric(frame["height_m"], errors="coerce")
-        estimated_height = pd.to_numeric(frame["height_est_m"], errors="coerce")
-
-        more_than_three_storeys = (
-            levels.gt(PART_3_MIN_STOREYS)
-            | estimated_levels.gt(PART_3_MIN_STOREYS)
-            | height.gt(PART_3_MIN_STOREYS * STOREY_HEIGHT_M)
-            | estimated_height.gt(PART_3_MIN_STOREYS * STOREY_HEIGHT_M)
-        )
-        part_3 = confidence.ge(0.77) & area.ge(PART_3_FLOOR_AREA_M2) & (
-            area.gt(PART_3_MIN_AREA_M2) | more_than_three_storeys
-        )
+        part_3 = _part_3_mask(frame)
         explicit_height_data = part_3 & height.gt(0) & levels.gt(0)
         plausible_floor_height = (height / levels).between(2, 6)
         valid = explicit_height_data & plausible_floor_height & area.gt(0)

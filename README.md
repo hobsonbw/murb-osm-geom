@@ -225,7 +225,8 @@ combined, U- and C-shapes are grouped as `U/C-shaped`, and `Courtyard` remains
 separate. Remaining labels map to `Other / Irregular`. Panels have separate
 count scales to keep the
 smaller consultant sample visible. Only configured OSM cities and RDH rows
-with a climate zone are included.
+with a climate zone are included. OSM shapes use the same Part 3 selection
+as the geometry plots, rather than the entire Possible MURB export.
 
 ## RDH consultant analysis
 

@@ -168,6 +168,7 @@ def main() -> int:
         "baseline": args.baseline,
         "cities": list(LOCATIONS),
         "raw_building_counts": counts,
+        "shape_cohort": "Part 3 MURBs",
     }
     (analysis_dir / "pbf_refresh_manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8",

@@ -147,15 +147,31 @@ def _city_name(csv_path: Path) -> str | None:
     return LOCATIONS.get(name)
 
 
+def _part_3_mask(frame: pd.DataFrame) -> pd.Series:
+    confidence = pd.to_numeric(frame["murb_confidence"], errors="coerce")
+    area = pd.to_numeric(frame["footprint_area_m2"], errors="coerce")
+    levels = pd.to_numeric(frame["levels"], errors="coerce")
+    estimated_levels = pd.to_numeric(frame["levels_est"], errors="coerce")
+    height = pd.to_numeric(frame["height_m"], errors="coerce")
+    estimated_height = pd.to_numeric(frame["height_est_m"], errors="coerce")
+    more_than_three_storeys = (
+        levels.gt(PART_3_MIN_STOREYS)
+        | estimated_levels.gt(PART_3_MIN_STOREYS)
+        | height.gt(PART_3_MIN_STOREYS * STOREY_HEIGHT_M)
+        | estimated_height.gt(PART_3_MIN_STOREYS * STOREY_HEIGHT_M)
+    )
+    return confidence.ge(0.77) & area.ge(PART_3_FLOOR_AREA_M2) & (
+        area.gt(PART_3_MIN_AREA_M2) | more_than_three_storeys
+    )
+
+
 def _summarize(
     csv_path: Path,
 ) -> tuple[list[float], dict[str, list[float]], dict[str, int]]:
     frame = pd.read_csv(csv_path)
     confidence = pd.to_numeric(frame["murb_confidence"], errors="coerce")
     height = pd.to_numeric(frame["height_m"], errors="coerce")
-    estimated_height = pd.to_numeric(frame["height_est_m"], errors="coerce")
     levels = pd.to_numeric(frame["levels"], errors="coerce")
-    estimated_levels = pd.to_numeric(frame["levels_est"], errors="coerce")
     area = pd.to_numeric(frame["footprint_area_m2"], errors="coerce")
     geometry_values = {
         metric: pd.to_numeric(
@@ -166,15 +182,7 @@ def _summarize(
     }
     likely = confidence.ge(0.77)
 
-    more_than_three_storeys = (
-        levels.gt(PART_3_MIN_STOREYS)
-        | estimated_levels.gt(PART_3_MIN_STOREYS)
-        | height.gt(PART_3_MIN_STOREYS * STOREY_HEIGHT_M)
-        | estimated_height.gt(PART_3_MIN_STOREYS * STOREY_HEIGHT_M)
-    )
-    part_3_murbs = likely & area.ge(PART_3_FLOOR_AREA_M2) & (
-        area.gt(PART_3_MIN_AREA_M2) | more_than_three_storeys
-    )
+    part_3_murbs = _part_3_mask(frame)
     valid_values = area[part_3_murbs].dropna()
     explicit_height_data = part_3_murbs & height.gt(0) & levels.gt(0)
     floor_height_values = (height / levels)[explicit_height_data].dropna()

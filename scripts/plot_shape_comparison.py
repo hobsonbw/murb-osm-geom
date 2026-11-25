@@ -14,11 +14,11 @@ import pandas as pd
 
 if __package__:
     from .analyze_rdh import DEFAULT_INPUT
-    from .plot_footprint_area_by_city import LOCATIONS
+    from .plot_footprint_area_by_city import LOCATIONS, _part_3_mask
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from scripts.analyze_rdh import DEFAULT_INPUT
-    from scripts.plot_footprint_area_by_city import LOCATIONS
+    from scripts.plot_footprint_area_by_city import LOCATIONS, _part_3_mask
 
 
 DEFAULT_OSM_DIR = Path("data/outputs")
@@ -96,8 +96,11 @@ def _load_shape_counts(osm_dir: Path, rdh_csv: Path) -> pd.DataFrame:
         if city in seen_cities:
             raise ValueError(f"Duplicate OSM exports for {city}")
         seen_cities.add(city)
-        frame = pd.read_csv(csv_path, usecols=["shape_class"])
-        shapes = _map_shapes(frame["shape_class"], OSM_SHAPE_MAP)
+        frame = pd.read_csv(csv_path, usecols=[
+            "shape_class", "murb_confidence", "footprint_area_m2", "levels",
+            "levels_est", "height_m", "height_est_m",
+        ])
+        shapes = _map_shapes(frame.loc[_part_3_mask(frame), "shape_class"], OSM_SHAPE_MAP)
         osm_counts = osm_counts.add(
             shapes.value_counts().reindex(SHAPE_CATEGORIES, fill_value=0),
             fill_value=0,

@@ -457,6 +457,12 @@ class CityAnalysisTests(unittest.TestCase):
                     "Rectangle", "Slab", "Square", "Tower", "L", "U",
                     "Courtyard", "Irregular",
                 ],
+                "murb_confidence": [0.9] * 8,
+                "footprint_area_m2": [700] * 8,
+                "levels": [4] * 8,
+                "levels_est": [4] * 8,
+                "height_m": [12] * 8,
+                "height_est_m": [12] * 8,
             }).to_csv(osm_dir / "calgary_murbs.csv", index=False)
             rdh_path = root / "rdh.csv"
             pd.DataFrame({
@@ -476,6 +482,30 @@ class CityAnalysisTests(unittest.TestCase):
             self.assertEqual(counts["Consultants"].sum(), 5)
             self.assertEqual(counts.loc["U/C-shaped", "Consultants"], 2)
             self.assertEqual(counts.loc["Courtyard", "Consultants"], 0)
+
+    def test_shape_comparison_uses_part_3_cohort(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            osm_dir = root / "osm"
+            osm_dir.mkdir()
+            pd.DataFrame({
+                "shape_class": ["Rectangle", "Square", "Tower", "L", "U"],
+                "murb_confidence": [0.55, 0.77, 0.77, 0.77, 0.77],
+                "footprint_area_m2": [700, 600, 87.59, 600, 601],
+                "levels": [3, 3, 4, None, None],
+                "levels_est": [3, 3, 4, None, None],
+                "height_m": [9, 9, 12, 12, None],
+                "height_est_m": [9, 9, 12, 12, None],
+            }).to_csv(osm_dir / "calgary_murbs.csv", index=False)
+            rdh_path = root / "rdh.csv"
+            pd.DataFrame({"Climate Zone": ["6"], "Building Shape": ["Square"]}).to_csv(
+                rdh_path, index=False,
+            )
+            counts = _load_shape_counts(osm_dir, rdh_path)
+            self.assertEqual(counts["OSM"].sum(), 2)
+            self.assertEqual(counts.loc["L-shaped", "OSM"], 1)
+            self.assertEqual(counts.loc["U/C-shaped", "OSM"], 1)
+            self.assertEqual(counts["Consultants"].sum(), 1)
 
     def test_location_order_missing_cities_and_pooled_metrics(self):
         with tempfile.TemporaryDirectory() as directory:
