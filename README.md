@@ -37,6 +37,45 @@ Raw OSM downloads are cached under `data/raw/osm_cache/` (keyed by tile
 geometry hash, so multiple cities share the cache safely) and re-runs
 skip the network.
 
+### Local PBF acquisition
+
+Set `acquisition.pbf_path` in [config/settings.yaml](config/settings.yaml) to
+an existing Geofabrik `.osm.pbf` extract to use local data instead of Overpass.
+An empty path uses Overpass; a configured path that is missing logs a warning
+and falls back to Overpass. The current implementation selects by `pbf_path`,
+not by `acquisition.method`.
+
+GDAL's `multipolygons` layer contains both closed building ways and
+multipolygon relations. The loader clips these areas to the city boundary and
+expands height, level, flat-count, and house-number tags from `other_tags`.
+Preprocessing maps `osm_way_id` for ways and `osm_id` for relations to
+`(element_type, osmid)` so distinct buildings are not discarded as duplicates.
+Country-sized PBF files can still take many minutes to read; prefer regional
+extracts when available. After an ingestion fix, rerun without
+`--from-checkpoint` to rebuild classification and height estimates.
+
+See [CALGARY_ANALYSIS.md](CALGARY_ANALYSIS.md) for the measured identity-loss
+investigation and the existing MURB heuristic's limitations.
+
+### Refresh all configured analysis cities
+
+Preserve the previous committed analysis with a baseline tag before refreshing.
+The bulk command reads the PBF once in bounded Arrow batches, uses saved
+municipal boundaries when available, and regenerates the 13 cities configured
+in the analysis scripts (Ottawa is not included):
+
+```powershell
+git tag overpass-analysis-baseline
+python -m scripts.refresh_city_analysis --baseline overpass-analysis-baseline
+```
+
+This replaces those cities' exports/checkpoints and regenerates OSM geometry,
+height, floor-area/floors, and shape-comparison figures. Consultant-only figures
+are unchanged. In addition to `sample_size.csv`, it writes
+`data/outputs/analysis/cohort_comparison.csv` and a source-checksum/workflow
+manifest, `pbf_refresh_manifest.json`. Access the old outputs through the
+baseline tag. Do not recreate an existing baseline tag on a later commit.
+
 ## Fast iteration on metrics
 
 To iterate quickly on geometry metrics without re-running classification:

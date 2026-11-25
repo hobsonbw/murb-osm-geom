@@ -11,10 +11,16 @@ study_area:
 
 acquisition:
   # One of: osmnx | overpass | pbf
-  # Only `osmnx` is implemented in this MVP. The other modes are stubs.
-  method: osmnx
+  # Set to "pbf" and configure pbf_path to load from a local .osm.pbf file.
+  # Otherwise use "osmnx" (default) which downloads via Overpass API.
+  method: pbf
+  # Path to local OSM PBF file (relative to project root).
+  # If set and file exists, the pipeline will load from it and clip to study area.
+  # Leave empty or comment out to use Overpass API instead.
+  pbf_path: "data/raw/canada-261122.osm.pbf"
   # Split the boundary into an NxN grid of tiles and query each separately.
   # Large cities like Ottawa can otherwise blow past Overpass timeouts.
+  # Only used when method=osmnx.
   tile_grid: 12
   # Per-request timeout (seconds) applied to OSMnx/Overpass.
   timeout: 120

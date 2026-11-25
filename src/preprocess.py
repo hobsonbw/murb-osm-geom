@@ -5,7 +5,7 @@ Steps:
     * repair invalid polygons (buffer(0) fallback via `make_valid`)
     * keep only (Multi)Polygon geometries (OSM sometimes returns points/lines
       tagged with `building=*` for annotation nodes)
-    * drop exact duplicates by osmid
+    * drop repeated OSM elements by element type and osmid
     * project to the working (metric) CRS
 """
 
@@ -26,6 +26,16 @@ LOGGER = get_logger()
 def _osmid_column(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Ensure a stable `osmid` column exists (osmnx v2 uses 'id' or index)."""
     if "osmid" in gdf.columns:
+        return gdf
+    if "osm_way_id" in gdf.columns:
+        gdf = gdf.copy()
+        relation = gdf["osm_id"].notna()
+        way = gdf["osm_way_id"].notna()
+        if not (relation ^ way).all():
+            raise ValueError("GDAL building areas must have exactly one of osm_id or osm_way_id")
+        gdf["osmid"] = gdf["osm_id"].where(relation, gdf["osm_way_id"])
+        gdf["element_type"] = "way"
+        gdf.loc[relation, "element_type"] = "relation"
         return gdf
     for candidate in ("id", "osm_id"):
         if candidate in gdf.columns:
@@ -71,10 +81,13 @@ def preprocess(gdf: gpd.GeoDataFrame, settings: dict[str, Any]) -> gpd.GeoDataFr
         gdf["geometry"] = gdf["geometry"].apply(_coerce_to_polygonal)
         gdf = gdf[gdf.geometry.notna() & ~gdf.geometry.is_empty].copy()
 
-    # Deduplicate by osmid, keeping the first occurrence (tile overlap safety).
+    # Way and relation IDs occupy separate OSM namespaces.
+    if gdf["osmid"].isna().any() or gdf["osmid"].astype(str).str.strip().eq("").any():
+        raise ValueError("Cannot deduplicate buildings with missing OSM IDs")
+    identity = ["element_type", "osmid"] if "element_type" in gdf.columns else ["osmid"]
     before = len(gdf)
-    gdf = gdf.drop_duplicates(subset=["osmid"]).reset_index(drop=True)
-    LOGGER.info("Removed %d duplicate osmids", before - len(gdf))
+    gdf = gdf.drop_duplicates(subset=identity).reset_index(drop=True)
+    LOGGER.info("Removed %d repeated OSM elements", before - len(gdf))
 
     # Project to working CRS for metric calculations.
     if gdf.crs is None:

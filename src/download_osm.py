@@ -1,10 +1,12 @@
 """Download OSM building footprints for the study area.
 
-Default acquisition uses OSMnx, which wraps the Overpass API. The city
-boundary is fetched via `geocode_to_gdf`, then split into a coarse grid
-of tiles so that individual Overpass queries stay within their timeout
-budget. Tiles are cached to disk as GeoPackage layers to avoid repeat
-downloads across runs.
+Acquisition methods:
+1. Local OSM PBF extract (fastest, recommended for bulk data like Geofabrik)
+   - Set acquisition.pbf_path in config/settings.yaml
+   - Buildings are clipped to the study area boundary
+2. OSMnx (via Overpass API)
+   - Splits study area into configurable tile grid to avoid timeouts
+   - Tiles are cached to avoid repeat downloads
 """
 
 from __future__ import annotations
@@ -26,6 +28,12 @@ from .utils import ensure_dir, get_logger, resolve_path
 LOGGER = get_logger()
 
 BUILDING_TAGS: dict[str, bool | list[str]] = {"building": True}
+PBF_TAGS = ("height", "roof:height", "building:levels", "building:flats",
+            "addr:housenumber")
+PBF_BUILDING_SQL = "SELECT *, " + ", ".join(
+    f"""hstore_get_value(other_tags, '{tag}') AS "{tag}" """
+    for tag in PBF_TAGS
+) + " FROM multipolygons WHERE building IS NOT NULL AND building <> ''"
 
 
 def _cache_key(polygon: BaseGeometry) -> str:
@@ -138,12 +146,73 @@ def _safe_write_gpkg(gdf: gpd.GeoDataFrame, path: Path) -> None:
     out.to_file(path, driver="GPKG")
 
 
+def _load_from_pbf(
+    pbf_path: Path,
+    boundary_polygon: BaseGeometry,
+) -> gpd.GeoDataFrame:
+    """Read GDAL building areas (closed ways and relations) and clip to boundary."""
+    if not pbf_path.exists():
+        raise FileNotFoundError(f"PBF file not found: {pbf_path}")
+
+    LOGGER.info("Loading buildings from PBF: %s", pbf_path)
+    # GDAL exposes closed ways in multipolygons, with IDs in osm_way_id;
+    # osm_id is populated only for relations. Preprocessing normalizes both.
+    gdf = gpd.read_file(
+        pbf_path,
+        engine="pyogrio",
+        sql=PBF_BUILDING_SQL,
+        sql_dialect="OGRSQL",
+        bbox=boundary_polygon.bounds,
+    )
+    LOGGER.info("Read %d building areas intersecting study area bounding box", len(gdf))
+    gdf = gdf.clip(boundary_polygon)
+
+    if gdf.empty:
+        LOGGER.warning("No buildings remain after clipping to study area")
+        return gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
+
+    LOGGER.info("Loaded %d buildings from PBF (after clipping to study area)", len(gdf))
+    return gdf
+
+
 def download_buildings(settings: dict[str, Any]) -> gpd.GeoDataFrame:
-    """Download all buildings in the configured study area."""
+    """Download all buildings in the configured study area.
+
+    If acquisition.pbf_path is configured and the file exists, load from the PBF
+    and clip to the study area. Otherwise use OSMnx/Overpass API.
+    """
     city = settings["study_area"]["city"]
     acq = settings["acquisition"]
-    cache_dir = ensure_dir(resolve_path(settings["paths"]["cache_dir"]))
     raw_dir = ensure_dir(resolve_path(settings["paths"]["raw_dir"]))
+
+    # Check if PBF file is configured and exists
+    pbf_path_str = acq.get("pbf_path", "").strip()
+    if pbf_path_str:
+        pbf_path = resolve_path(pbf_path_str)
+        if pbf_path.exists():
+            LOGGER.info("Using local PBF file: %s", pbf_path)
+            boundary = get_boundary(city)
+            polygon = boundary.geometry.unary_union
+            merged = _load_from_pbf(pbf_path, polygon)
+
+            basename = settings.get("run", {}).get("basename", "study_area")
+            raw_path = raw_dir / f"{basename}_buildings_raw.gpkg"
+            _safe_write_gpkg(merged, raw_path)
+            LOGGER.info("Wrote %s", raw_path)
+
+            boundary_path = raw_dir / f"{basename}_boundary.gpkg"
+            boundary.to_file(boundary_path, driver="GPKG")
+            LOGGER.info("Wrote %s", boundary_path)
+
+            return merged
+        else:
+            LOGGER.warning(
+                "PBF file configured but not found (%s); falling back to Overpass",
+                pbf_path,
+            )
+
+    # Fall back to OSMnx/Overpass
+    cache_dir = ensure_dir(resolve_path(settings["paths"]["cache_dir"]))
 
     timeout = int(acq.get("timeout", 300))
     overpass_urls = acq.get("overpass_urls", ["https://overpass-api.de/api"])

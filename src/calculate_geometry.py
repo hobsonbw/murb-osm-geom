@@ -128,6 +128,8 @@ def _calculate_average_depth(
     Returns the weighted average depth across all significant skeleton branches,
     with fallback to simple area/perimeter estimate for degenerate cases.
     """
+    if isinstance(geom, MultiPolygon) and len(geom.geoms) == 1:
+        geom = geom.geoms[0]
     if geom is None or geom.is_empty or not isinstance(geom, Polygon):
         return np.nan
 
