@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -104,6 +105,43 @@ class OsmIngestionTests(unittest.TestCase):
         counts = _extract_city_buildings(osm_path, {"city": boundary}, output_dir)
         self.assertEqual(counts, {"city": 1})
         extracted = gpd.read_file(output_dir / "city_buildings.gpkg")
+        self.assertTrue(extracted.is_valid.all())
+
+    def test_repaired_polygons_append_to_conformant_multipolygon_layer(self):
+        osm_path = Path(self.directory.name) / "mixed.osm"
+        osm_path.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6">
+  <node id="1" lat="51.00" lon="-114.00"/>
+  <node id="2" lat="51.00" lon="-113.99"/>
+  <node id="3" lat="51.01" lon="-113.99"/>
+  <node id="4" lat="51.01" lon="-114.00"/>
+  <node id="5" lat="51.04" lon="-114.00"/>
+  <node id="6" lat="51.04" lon="-113.99"/>
+  <node id="7" lat="51.05" lon="-113.99"/>
+  <node id="8" lat="51.05" lon="-113.98"/>
+  <node id="9" lat="51.05" lon="-114.00"/>
+  <way id="100">
+    <nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="4"/><nd ref="1"/>
+    <tag k="building" v="apartments"/>
+  </way>
+  <way id="101">
+    <nd ref="5"/><nd ref="6"/><nd ref="7"/><nd ref="8"/><nd ref="7"/>
+    <nd ref="9"/><nd ref="5"/>
+    <tag k="building" v="apartments"/>
+  </way>
+</osm>""", encoding="utf-8")
+        output_dir = Path(self.directory.name) / "mixed_extracted"
+        output_dir.mkdir()
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message="A geometry of type.*",
+                                    category=RuntimeWarning)
+            counts = _extract_city_buildings(
+                osm_path, {"city": box(-114.01, 50.99, -113.97, 51.06)},
+                output_dir, batch_size=1,
+            )
+        self.assertEqual(counts, {"city": 2})
+        extracted = gpd.read_file(output_dir / "city_buildings.gpkg")
+        self.assertEqual(extracted.geom_type.tolist(), ["MultiPolygon", "MultiPolygon"])
         self.assertTrue(extracted.is_valid.all())
 
     def test_gdal_area_loading_restores_tags_and_clips(self):

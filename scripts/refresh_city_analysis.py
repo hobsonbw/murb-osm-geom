@@ -78,6 +78,7 @@ def _extract_city_buildings(
                 clipped.to_file(
                     path, layer="buildings", driver="GPKG", engine="pyogrio",
                     mode="a" if path.exists() else "w", index=False,
+                    promote_to_multi=True,
                 )
                 counts[city] += len(clipped)
             LOGGER.info("Extracted batch %d; city totals: %s", batch_number, counts)
@@ -92,7 +93,9 @@ def _compare_cohorts(baseline: str, analysis_dir: Path) -> None:
     )
     old = pd.read_csv(io.StringIO(result.stdout)).set_index("Locations")
     new = pd.read_csv(analysis_dir / "sample_size.csv").set_index("Locations")
-    comparison = old.join(new, lsuffix="_baseline", rsuffix="_pbf", how="outer")
+    comparison = old.join(
+        new, lsuffix="_baseline", rsuffix="_pbf", how="outer",
+    ).reindex(new.index)
     for column in new.columns:
         comparison[f"{column}_change"] = (
             comparison[f"{column}_pbf"] - comparison[f"{column}_baseline"]
