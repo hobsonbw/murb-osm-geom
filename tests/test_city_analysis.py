@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
+from scipy import stats
 
 from scripts.analyze_rdh import RDH_METRICS, main as analyze_rdh
 from scripts.plot_footprint_area_by_city import (
@@ -23,10 +24,82 @@ from scripts.plot_floor_area_relationship import (
     _trim_percentiles,
     _write_scatterplot,
 )
+from scripts.plot_osm_correlations import (
+    METRICS,
+    _correlation_tables,
+    _load_filtered_metrics,
+    _write_scatter_matrix,
+)
 from scripts.plot_shape_comparison import _load_shape_counts
 
 
 class CityAnalysisTests(unittest.TestCase):
+    def test_pairwise_spearman_uses_only_complete_pairs_and_reranks_ties(self):
+        metrics = pd.DataFrame({
+            "x": [1, 2, 2, 4, 5],
+            "y": [3, 1, None, 4, 5],
+            "z": [8, None, None, None, None],
+        })
+        pearson, spearman, counts = _correlation_tables(metrics)
+        pairs = metrics[["x", "y"]].dropna()
+        self.assertEqual(counts.loc["x", "y"], 4)
+        self.assertEqual(counts.loc["x", "z"], 1)
+        self.assertAlmostEqual(pearson.loc["x", "y"], stats.pearsonr(pairs["x"], pairs["y"]).statistic)
+        self.assertAlmostEqual(spearman.loc["x", "y"], stats.spearmanr(pairs["x"], pairs["y"]).statistic)
+        self.assertTrue(pd.isna(pearson.loc["x", "z"]))
+        self.assertTrue(pd.isna(spearman.loc["x", "z"]))
+
+    def test_correlation_matrix_uses_matched_pairs_and_metric_specific_filters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "calgary_murbs.csv"
+            pd.DataFrame({
+                "murb_confidence": [0.9] * 11 + [0.2],
+                "height_m": [12] * 10 + [150, 12],
+                "height_est_m": [12] * 10 + [150, 12],
+                "levels": [4] * 10 + [30, 4],
+                "levels_est": [4] * 10 + [30, 4],
+                "footprint_area_m2": [*range(700, 710), 5000, 705],
+                "width_m": [*range(10, 21), 15],
+                "average_depth_m": [5] * 9 + [None, 5, 5],
+            }).to_csv(source, index=False)
+            original = source.read_bytes()
+            metrics = _load_filtered_metrics(root)
+            pearson, spearman, counts = _correlation_tables(metrics)
+            area, width, depth = METRICS[0], METRICS[2], METRICS[3]
+            floor_height, floors, building_height = METRICS[6:]
+
+            self.assertEqual(counts.loc[area, area], 10)
+            self.assertEqual(counts.loc[width, width], 11)
+            self.assertEqual(counts.loc[area, width], 10)
+            self.assertEqual(counts.loc[area, depth], 9)
+            self.assertEqual(counts.loc[floors, building_height], 11)
+            self.assertTrue(pd.isna(metrics.loc[10, area]))
+            self.assertEqual(metrics.loc[10, floors], 30)
+            self.assertEqual(metrics.loc[10, building_height], 150)
+            self.assertEqual(metrics.loc[10, floor_height], 5)
+            self.assertTrue(metrics.loc[11].isna().all())
+            self.assertAlmostEqual(pearson.loc[area, width], 1)
+            self.assertAlmostEqual(spearman.loc[area, width], 1)
+            self.assertAlmostEqual(pearson.loc[floors, building_height], 1)
+            self.assertAlmostEqual(spearman.loc[floors, building_height], 1)
+            self.assertTrue(pd.isna(pearson.loc[area, building_height]))
+            self.assertTrue(pd.isna(spearman.loc[area, building_height]))
+            self.assertTrue(pd.isna(pearson.loc[area, METRICS[1]]))
+
+            output = root / "correlations.svg"
+            with patch("scripts.plot_osm_correlations.plt.close"):
+                _write_scatter_matrix(metrics, pearson, spearman, counts, output)
+            figure = plt.gcf()
+            try:
+                self.assertEqual(len(figure.axes), 81)
+                self.assertEqual(len(figure.axes[2 * 9].collections[0].get_offsets()), 10)
+                self.assertIn("n = 10", figure.axes[2].texts[0].get_text())
+                self.assertTrue(output.exists())
+            finally:
+                plt.close(figure)
+            self.assertEqual(source.read_bytes(), original)
+
     def test_city_box_requires_ten_valid_footprints(self):
         with tempfile.TemporaryDirectory() as directory:
             input_dir = Path(directory) / "input"

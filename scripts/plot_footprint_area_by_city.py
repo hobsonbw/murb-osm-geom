@@ -235,48 +235,44 @@ def _part_3_mask(frame: pd.DataFrame) -> pd.Series:
     )
 
 
+def _metric_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    height = pd.to_numeric(frame["height_m"], errors="coerce")
+    levels = pd.to_numeric(frame["levels"], errors="coerce")
+    area = pd.to_numeric(frame["footprint_area_m2"], errors="coerce")
+    part_3_murbs = _part_3_mask(frame)
+    floor_height = height / levels
+    valid_height = (
+        part_3_murbs & height.gt(0) & levels.gt(0) & floor_height.between(2, 6)
+    )
+    return pd.DataFrame({
+        "footprint area (m2)": area.where(part_3_murbs),
+        **{
+            label: pd.to_numeric(
+                frame[metric] if metric in frame else pd.Series(index=frame.index, dtype=float),
+                errors="coerce",
+            ).where(part_3_murbs)
+            for metric, (label, _, _) in GEOMETRY_METRICS.items()
+        },
+        "Floor height (m)": floor_height.where(valid_height),
+        "Number of floors": levels.where(valid_height),
+        "Building height (m)": height.where(valid_height),
+    })
+
+
 def _summarize(
     csv_path: Path,
 ) -> tuple[list[float], dict[str, list[float]], dict[str, int]]:
     frame = pd.read_csv(csv_path)
+    metrics = _metric_frame(frame)
     confidence = pd.to_numeric(frame["murb_confidence"], errors="coerce")
-    height = pd.to_numeric(frame["height_m"], errors="coerce")
-    levels = pd.to_numeric(frame["levels"], errors="coerce")
-    area = pd.to_numeric(frame["footprint_area_m2"], errors="coerce")
-    geometry_values = {
-        metric: pd.to_numeric(
-            frame[metric] if metric in frame else pd.Series(index=frame.index, dtype=float),
-            errors="coerce",
-        )
-        for metric in GEOMETRY_METRICS
-    }
-    likely = confidence.ge(0.77)
-
-    part_3_murbs = _part_3_mask(frame)
-    valid_values = area[part_3_murbs].dropna()
-    explicit_height_data = part_3_murbs & height.gt(0) & levels.gt(0)
-    floor_height_values = (height / levels)[explicit_height_data].dropna()
-    plausible_floor_height = floor_height_values.between(2, 6)
-    floor_height_values = floor_height_values[plausible_floor_height]
-    levels_values = levels[floor_height_values.index]
-    building_height_values = height[floor_height_values.index]
     counts = {
         "Possible MURBs": len(frame),
-        "Likely MURBs": int(likely.sum()),
-        "Part 3 MURBs": int(part_3_murbs.sum()),
-        "Part 3 MURBs with Height": len(floor_height_values),
+        "Likely MURBs": int(confidence.ge(0.77).sum()),
+        "Part 3 MURBs": int(_part_3_mask(frame).sum()),
+        "Part 3 MURBs with Height": int(metrics["Floor height (m)"].notna().sum()),
     }
-    summary_data = {
-        "footprint area (m2)": valid_values.tolist(),
-        **{
-            GEOMETRY_METRICS[metric][0]: values[part_3_murbs].dropna().tolist()
-            for metric, values in geometry_values.items()
-        },
-        "Floor height (m)": floor_height_values.tolist(),
-        "Number of floors": levels_values.tolist(),
-        "Building height (m)": building_height_values.tolist(),
-    }
-    return valid_values.tolist(), summary_data, counts
+    summary_data = {metric: metrics[metric].dropna().tolist() for metric in metrics}
+    return summary_data["footprint area (m2)"], summary_data, counts
 
 
 def _load_city_data(

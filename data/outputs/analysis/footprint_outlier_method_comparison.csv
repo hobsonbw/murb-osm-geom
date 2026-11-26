@@ -1,0 +1,4 @@
+Method,Input count,Retained count,Removed count,Removed percent,Lower bound (m2),Upper bound (m2),Minimum footprint area (m2),5th percentile footprint area (m2),50th percentile footprint area (m2),95th percentile footprint area (m2),Maximum footprint area (m2)
+Unfiltered,13559,13559,0,0.000000,,,88.140109,295.630411,1034.462057,2940.981343,22904.201896
+1.5 x IQR,13559,12783,776,5.723136,-554.191147,2788.361387,88.140109,285.631097,988.770295,2217.378275,2787.859668
+1.5 x sample SD,13559,12909,650,4.793864,-749.171663,2983.341903,88.140109,287.234623,998.485192,2295.198451,2982.300192
