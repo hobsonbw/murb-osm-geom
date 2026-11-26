@@ -200,6 +200,10 @@ Generate the optional OSM metric correlation matrix separately:
 python -m scripts.plot_osm_correlations
 ```
 
+For interactive geometry-only, geometry-plus-height, and normalized
+parallel-coordinate plots, run `python -m scripts.plot_osm_parallel_coordinates`
+and open the resulting HTML files in a browser.
+
 City MURB CSVs remain in `data/outputs/`; primary metric outputs are in
 `data/outputs/analysis/`, with exploratory outputs in its `exploratory/`
 subfolder. Geometry and footprint summaries use pooled IQR filtering; height

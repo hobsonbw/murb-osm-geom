@@ -159,6 +159,48 @@ are mathematically related (for example aspect ratio is length/width, and
 floor height is building height/floors). Pooled city composition, missing height
 tags, cohort criteria, and IQR selection can also influence the relationships.
 
+### Interactive parallel-coordinate plots
+
+Generate standalone HTML plots from the existing city CSVs:
+
+```powershell
+python -m scripts.plot_osm_parallel_coordinates
+```
+
+Open the downloaded HTML files in a browser (GitHub displays their source
+rather than running them):
+
+- [`osm_parallel_geometry.html`](../data/outputs/analysis/exploratory/osm_parallel_geometry.html):
+  six geometry metrics.
+- [`osm_parallel_all_metrics.html`](../data/outputs/analysis/exploratory/osm_parallel_all_metrics.html):
+  those metrics plus floor height, number of floors, and building height.
+- [`osm_parallel_all_metrics_normalized.html`](../data/outputs/analysis/exploratory/osm_parallel_all_metrics_normalized.html):
+  the same all-metrics buildings, with each metric scaled to 0–1.
+
+Each line represents one building. Drag along an axis to highlight a range;
+ranges selected on multiple axes are combined, and other lines are dimmed.
+The files contain the JavaScript needed to work offline. `--input-dir` and
+`--output-dir` select other input and output directories.
+The all-metrics plot uses fixed axis ranges: footprint 0–3,000 m²;
+length, width, and average depth 0–120 m; aspect ratio 1–5; rectangularity
+0.25–1; floor height 0–6 m; floors 0–70; and building height 0–220 m. The
+geometry-only plot uses data-driven ranges. If a regenerated all-metrics
+dataset has values outside a fixed range, generation fails rather than hiding
+or misrepresenting those buildings.
+
+The normalized plot uses `(value - minimum) / (maximum - minimum)`, where the
+minimum and maximum are observed among the buildings in the all-metrics plot,
+not the fixed axis endpoints. Original-unit ranges are shown below the plot.
+Normalization fails explicitly if any displayed metric is constant.
+
+All plots use the same cohort and metric-specific filters as the correlations.
+Unlike the pairwise correlations, each plot requires a retained value for
+**every** displayed metric. The committed data yield 11,827 buildings in the
+geometry plot and 322 in the all-metrics plot; the latter also requires valid
+explicit height and levels. Counts are shown in the plot titles and can change
+when the data are regenerated. These complete-case samples do not represent all
+eligible buildings, and their relationships should not be interpreted as causal.
+
 ## OSM and RDH area/floors comparison
 
 Compare Part 3 OSM buildings with RDH consultant records using a square
