@@ -39,8 +39,25 @@ skip the network.
 
 ### Local PBF acquisition
 
+Geofabrik provides OpenStreetMap extracts on its
+[North America download page](https://download.geofabrik.de/north-america/).
+To use the Canada extract, download
+[canada-latest.osm.pbf](https://download.geofabrik.de/north-america/canada/canada-latest.osm.pbf)
+and place it under `data/raw/`. The file is over 6 GB and is not included in
+the repository; PBF files under `data/raw/` are ignored by Git.
+
+Geofabrik extracts are updated regularly, in some cases daily, so the latest
+download may differ from the data used for the committed analysis. That
+analysis used `canada-261122.osm.pbf`, downloaded on **2026-11-23 at 16:23
+UTC**. Its SHA-256 checksum is recorded in the
+[refresh manifest](data/outputs/analysis/provenance/pbf_refresh_manifest.json);
+matching it requires the same file, not just a later download from the latest
+link.
+
 Set `acquisition.pbf_path` in [config/settings.yaml](config/settings.yaml) to
-an existing Geofabrik `.osm.pbf` extract to use local data instead of Overpass.
+the downloaded file's path to use local data instead of Overpass. The configured
+path names the analysis file above, so update it if the downloaded file has a
+different name.
 An empty path uses Overpass; a configured path that is missing logs a warning
 and falls back to Overpass. The current implementation selects by `pbf_path`,
 not by `acquisition.method`.
