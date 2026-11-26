@@ -1,13 +1,13 @@
 """Quick preview of a single WKT polygon.
 
 Usage:
-    python scripts/plot_polygon.py [wkt_file] [output_png]
+    python scripts/plot_polygon.py wkt_file [output_png]
 
-Defaults: reads tmp_poly.wkt, writes data/outputs/polygon_preview.png
+By default, writes data/outputs/polygon_preview.png.
 """
 from __future__ import annotations
 
-import sys
+import argparse
 from pathlib import Path
 
 import matplotlib
@@ -20,8 +20,15 @@ from shapely.geometry import Polygon
 
 
 def main() -> None:
-    wkt_file = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("tmp_poly.wkt")
-    out_png = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("data/outputs/polygon_preview.png")
+    parser = argparse.ArgumentParser(description="Preview a single WKT polygon.")
+    parser.add_argument("wkt_file", type=Path, help="path to a WKT polygon file")
+    parser.add_argument(
+        "output_png", type=Path, nargs="?", default=Path("data/outputs/polygon_preview.png"),
+        help="output image path (default: data/outputs/polygon_preview.png)",
+    )
+    args = parser.parse_args()
+    wkt_file = args.wkt_file
+    out_png = args.output_png
     out_png.parent.mkdir(parents=True, exist_ok=True)
 
     geom = wkt.loads(wkt_file.read_text().strip())
