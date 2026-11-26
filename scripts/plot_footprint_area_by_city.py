@@ -9,6 +9,7 @@ By default, the script reads data/outputs/*_murb.csv and *_murbs.csv and writes:
     data/outputs/analysis/floor_num.svg
     data/outputs/analysis/build_height.svg
     data/outputs/analysis/sample_size.csv
+    data/outputs/analysis/osm_metric_filter_counts.csv
     data/outputs/analysis/footprint_area_summary.csv
     data/outputs/analysis/floor_height.csv
     data/outputs/analysis/floor_num.csv
@@ -102,6 +103,75 @@ def _statistics(values: list[float]) -> dict[str, float]:
     percentiles = series.quantile([0.05, 0.50, 0.95])
     return dict(zip(STATISTICS, (series.min(), percentiles.loc[0.05],
                                  percentiles.loc[0.50], percentiles.loc[0.95], series.max())))
+
+
+def _iqr_bounds(values: list[float]) -> tuple[float, float] | None:
+    if not values:
+        return None
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("IQR bounds require finite numeric values")
+    quartiles = pd.Series(values).quantile([0.25, 0.75])
+    q1, q3 = float(quartiles.loc[0.25]), float(quartiles.loc[0.75])
+    spread = q3 - q1
+    return q1 - 1.5 * spread, q3 + 1.5 * spread
+
+
+def _filter_metric_values(
+    values: list[float], bounds: tuple[float, float] | None,
+) -> list[float]:
+    if not values:
+        return []
+    if bounds is None:
+        raise ValueError("Nonempty metric values require IQR bounds")
+    lower, upper = bounds
+    return [value for value in values if lower <= value <= upper]
+
+
+def _pooled_iqr_bounds(
+    city_data: dict[str, tuple[list[float], dict[str, list[float]], dict[str, int]]],
+) -> dict[str, tuple[float, float] | None]:
+    pooled: dict[str, list[float]] = {}
+    for _, metrics, _ in city_data.values():
+        for metric, values in metrics.items():
+            pooled.setdefault(metric, []).extend(values)
+    return {metric: _iqr_bounds(values) for metric, values in pooled.items()}
+
+
+def _filter_city_data(
+    city_data: dict[str, tuple[list[float], dict[str, list[float]], dict[str, int]]],
+    bounds: dict[str, tuple[float, float] | None],
+) -> dict[str, tuple[list[float], dict[str, list[float]], dict[str, int]]]:
+    filtered = {}
+    for city, (_, metrics, counts) in city_data.items():
+        selected = {
+            metric: values if metric in HEIGHT_METRICS
+            else _filter_metric_values(values, bounds[metric])
+            for metric, values in metrics.items()
+        }
+        filtered[city] = (selected["footprint area (m2)"], selected, counts)
+    return filtered
+
+
+def _metric_filter_row(
+    location: str,
+    metric: str,
+    input_count: int,
+    retained_count: int,
+    bounds: tuple[float, float] | None,
+) -> dict[str, str | int | float | None]:
+    excluded = input_count - retained_count
+    uses_iqr = metric not in HEIGHT_METRICS
+    return {
+        "Locations": location,
+        "Metric": metric,
+        "Filter": "1.5 IQR" if uses_iqr else "none",
+        "Input count": input_count,
+        "Retained count": retained_count,
+        "Excluded count": excluded,
+        "Excluded percent": 100 * excluded / input_count if input_count else 0.0,
+        "Lower bound": bounds[0] if uses_iqr and bounds is not None else None,
+        "Upper bound": bounds[1] if uses_iqr and bounds is not None else None,
+    }
 
 
 def _parse_args() -> argparse.Namespace:
@@ -209,6 +279,24 @@ def _summarize(
     return valid_values.tolist(), summary_data, counts
 
 
+def _load_city_data(
+    input_dir: Path,
+) -> dict[str, tuple[list[float], dict[str, list[float]], dict[str, int]]]:
+    city_data = {}
+    csv_paths = sorted(
+        path for path in input_dir.glob("*.csv")
+        if path.stem.endswith(("_murb", "_murbs"))
+    )
+    for csv_path in csv_paths:
+        city = _city_name(csv_path)
+        if city is None:
+            continue
+        if city in city_data:
+            raise ValueError(f"Duplicate exports for {city}: {csv_path}")
+        city_data[city] = _summarize(csv_path)
+    return city_data
+
+
 def _write_boxplot(
     values: list[list[float]],
     labels: list[str],
@@ -233,16 +321,6 @@ def _write_boxplot(
             for line in artists[kind][2 * index:2 * index + 2]:
                 line.set_color(color)
         flier = artists["fliers"][index]
-        lower, upper = pd.Series(series).quantile([0.003, 0.997])
-        visible = [
-            (position, value)
-            for position, value in zip(flier.get_xdata(), flier.get_ydata())
-            if lower <= value <= upper
-        ]
-        flier.set_data(
-            [position for position, _ in visible],
-            [value for _, value in visible],
-        )
         flier.set_markerfacecolor(color)
         flier.set_markeredgecolor(color)
 
@@ -348,23 +426,13 @@ def main() -> int:
             for metric, (label, title, ylabel) in GEOMETRY_METRICS.items()
         },
     }
-    csv_paths = sorted(
-        path for path in args.input_dir.glob("*.csv")
-        if path.stem.endswith(("_murb", "_murbs"))
-    )
-    city_data: dict[str, tuple[list[float], dict[str, list[float]], dict[str, int]]] = {}
-    for csv_path in csv_paths:
-        city = _city_name(csv_path)
-        if city is None:
-            continue
-        if city in city_data:
-            print(f"Duplicate exports for {city}: {csv_path}", file=sys.stderr)
-            return 1
-        try:
-            city_data[city] = _summarize(csv_path)
-        except (KeyError, ValueError, pd.errors.ParserError) as err:
-            print(f"Unable to process {csv_path}: {err}", file=sys.stderr)
-            return 1
+    try:
+        original_city_data = _load_city_data(args.input_dir)
+        bounds = _pooled_iqr_bounds(original_city_data)
+        city_data = _filter_city_data(original_city_data, bounds)
+    except (KeyError, ValueError, pd.errors.ParserError) as err:
+        print(f"Unable to process OSM exports in {args.input_dir}: {err}", file=sys.stderr)
+        return 1
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     sample_rows = []
@@ -374,6 +442,10 @@ def main() -> int:
         metric: [] for metric in metric_definitions
     }
     all_heights: dict[str, list[float]] = {metric: [] for metric in HEIGHT_METRICS}
+    filter_rows = []
+    all_input_counts = dict.fromkeys(
+        [*(definition[0] for definition in metric_definitions.values()), *HEIGHT_METRICS], 0,
+    )
     all_counts = dict.fromkeys(("Possible MURBs", "Likely MURBs", "Part 3 MURBs",
                                "Part 3 MURBs with Height"), 0)
     for city in LOCATIONS.values():
@@ -384,15 +456,26 @@ def main() -> int:
             },
                    dict.fromkeys(all_counts, 0))
         )
+        original_metrics = original_city_data.get(city, ([], {}, {}))[1]
         sample_rows.append({"Locations": city, **counts})
         for metric, (label, *_rest) in metric_definitions.items():
             metric_values = metrics[label]
+            input_count = len(original_metrics.get(label, []))
+            all_input_counts[label] += input_count
+            filter_rows.append(_metric_filter_row(
+                city, label, input_count, len(metric_values), bounds.get(label),
+            ))
             metric_rows[metric].append({"Locations": city, **{
                 f"{statistic} {label}": value
                 for statistic, value in _statistics(metric_values).items()
             }})
             all_metric_values[metric].extend(metric_values)
         for metric in HEIGHT_METRICS:
+            input_count = len(original_metrics.get(metric, []))
+            all_input_counts[metric] += input_count
+            filter_rows.append(_metric_filter_row(
+                city, metric, input_count, len(metrics[metric]), bounds.get(metric),
+            ))
             height_rows[metric].append({"Locations": city, **{
                 f"{statistic} {metric}": value
                 for statistic, value in _statistics(metrics[metric]).items()
@@ -403,11 +486,19 @@ def main() -> int:
 
     sample_rows.append({"Locations": "All", **all_counts})
     for metric, (label, *_rest) in metric_definitions.items():
+        filter_rows.append(_metric_filter_row(
+            "All", label, all_input_counts[label], len(all_metric_values[metric]),
+            bounds.get(label),
+        ))
         metric_rows[metric].append({"Locations": "All", **{
             f"{statistic} {label}": value
             for statistic, value in _statistics(all_metric_values[metric]).items()
         }})
     for metric in HEIGHT_METRICS:
+        filter_rows.append(_metric_filter_row(
+            "All", metric, all_input_counts[metric], len(all_heights[metric]),
+            bounds.get(metric),
+        ))
         height_rows[metric].append({"Locations": "All", **{
             f"{statistic} {metric}": value
             for statistic, value in _statistics(all_heights[metric]).items()
@@ -415,6 +506,8 @@ def main() -> int:
 
     sample_path = args.output_dir / args.sample_size_name
     pd.DataFrame(sample_rows).to_csv(sample_path, index=False)
+    filter_path = args.output_dir / "osm_metric_filter_counts.csv"
+    pd.DataFrame(filter_rows).to_csv(filter_path, index=False, float_format="%.6f")
     summary_paths = {}
     for metric, (_, _, _, _, summary_name, _) in metric_definitions.items():
         summary_path = args.output_dir / summary_name
@@ -436,6 +529,7 @@ def main() -> int:
         height_summary_paths[metric] = height_summary_path
 
     print(f"Wrote {sample_path}")
+    print(f"Wrote {filter_path}")
     for summary_path in summary_paths.values():
         print(f"Wrote {summary_path}")
     for height_summary_path in height_summary_paths.values():

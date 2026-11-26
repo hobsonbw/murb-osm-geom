@@ -235,8 +235,9 @@ mask as geometry plots. The old shape figure used all Possible MURBs, so its
 shape counts are not a dataset-only, like-for-like comparison. Other selection
 thresholds are unchanged; consultant-only figures/data are unchanged.
 
-The shape figure contains **13,559 OSM Part 3 candidates**. Height histograms
-use **377** records; the floor-area/floors scatter contains **371 OSM records**
+At completion of the untrimmed PBF refresh, the shape figure contained
+**13,559 OSM Part 3 candidates**. Height histograms used **377** records;
+the floor-area/floors scatter contained **371 OSM records**
 after its additional pooled percentile trimming. Average-depth summaries use
 **13,545 valid Part 3 depths**; the existing calculation still excludes
 genuinely multipart polygons. Singleton MultiPolygons from GDAL are now
@@ -256,7 +257,33 @@ The generation manifest records revision `33380d5`. Subsequent batch-format
 hardening and comparison-row ordering were committed separately. Large local
 PBF/intermediate/binary files remain excluded from Git under the existing
 repository rules; city CSVs, analysis outputs, and this report are retained
-in the results commit. No branch or tag has been pushed.
+in the results commit. The branch and baseline tag were subsequently pushed
+to `origin`.
+
+### Subsequent presentation-only outlier filtering
+
+OSM footprint area and the five geometry metrics retain values within
+`Q1 - 1.5 * IQR` through `Q3 + 1.5 * IQR`, inclusively. Each has its own
+fences calculated once from pooled eligible values across the configured
+cities, then applied consistently to every city and `All`. Floor height, floor
+count, and building height use all eligible values without IQR filtering.
+Tables and figures use identical selected values; boxplots no longer
+additionally hide extreme markers.
+
+This does not change the full building CSVs, eligibility counts above,
+`sample_size.csv`, or categorical shape counts. The height cohort still has
+377 eligible records, all retained for each height metric.
+[`osm_metric_filter_counts.csv`](data/outputs/analysis/osm_metric_filter_counts.csv)
+records input, retained, and excluded counts, percentages, filter policy, and
+applicable fences for all nine numeric metrics. Missing values are not counted
+as outlier exclusions.
+
+The area/floors scatter applies the pooled footprint fence to OSM points but
+does not filter by floor count. Consultant points retain their previous
+selection calculated from the original unfiltered combined points; consultant
+data and consultant-only figures/tables remain unchanged. These filtered
+summaries describe a presentation subset, not the complete cohort or an
+automatically more accurate population estimate.
 
 ## Changes and Validation
 

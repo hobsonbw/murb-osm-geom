@@ -16,14 +16,18 @@ if __package__:
     from .analyze_rdh import DEFAULT_INPUT, _load_rdh
     from .plot_footprint_area_by_city import (
         LOCATIONS,
+        _load_city_data,
         _part_3_mask,
+        _pooled_iqr_bounds,
     )
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from scripts.analyze_rdh import DEFAULT_INPUT, _load_rdh
     from scripts.plot_footprint_area_by_city import (
         LOCATIONS,
+        _load_city_data,
         _part_3_mask,
+        _pooled_iqr_bounds,
     )
 
 
@@ -119,6 +123,21 @@ def _trim_percentiles(points: pd.DataFrame) -> pd.DataFrame:
     return points.loc[keep].reset_index(drop=True)
 
 
+def _filter_comparison_iqr(
+    points: pd.DataFrame,
+    bounds: dict[str, tuple[float, float] | None],
+) -> pd.DataFrame:
+    original_selection = _trim_percentiles(points)
+    consultants = original_selection.loc[original_selection["source"].eq("Consultants")]
+    osm = points.loc[points["source"].eq("OSM")]
+    if not osm.empty:
+        limits = bounds.get("footprint area (m2)")
+        if limits is None:
+            raise ValueError("Missing pooled OSM IQR bounds for footprint area (m2)")
+        osm = osm.loc[osm["footprint_area_m2"].between(*limits)]
+    return pd.concat([osm, consultants], ignore_index=True)
+
+
 def _write_scatterplot(points: pd.DataFrame, output_path: Path) -> None:
     colors = {"OSM": "#000000", "Consultants": "#d16543"}
     fig, ax = plt.subplots(figsize=(7, 7))
@@ -160,9 +179,10 @@ def main() -> int:
         if points.empty:
             raise ValueError("No valid OSM or RDH area/floor pairs were found")
         initial_counts = points["source"].value_counts().to_dict()
-        points = _trim_percentiles(points)
+        bounds = _pooled_iqr_bounds(_load_city_data(args.osm_dir))
+        points = _filter_comparison_iqr(points, bounds)
         if points.empty:
-            raise ValueError("No records remain after percentile trimming")
+            raise ValueError("No records remain after OSM IQR filtering and consultant selection")
         _write_scatterplot(points, args.output)
     except (OSError, KeyError, ValueError, pd.errors.ParserError) as error:
         print(f"Unable to create footprint/floor comparison: {error}", file=sys.stderr)
@@ -174,7 +194,7 @@ def main() -> int:
         f"Loaded {initial_counts.get('OSM', 0)} explicit-height OSM records and "
         f"{initial_counts.get('Consultants', 0)} consultant records; plotted "
         f"{counts.get('OSM', 0)} OSM and {counts.get('Consultants', 0)} consultant "
-        f"records after percentile trimming"
+        f"records after OSM footprint IQR filtering; consultant selection is unchanged"
     )
     return 0
 

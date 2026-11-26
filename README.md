@@ -76,7 +76,7 @@ This replaces those cities' exports/checkpoints and regenerates OSM geometry,
 height, floor-area/floors, and shape-comparison figures. Consultant-only figures
 are unchanged. In addition to `sample_size.csv`, it writes
 `data/outputs/analysis/cohort_comparison.csv` and a source-checksum/workflow
-manifest, `pbf_refresh_manifest.json`. Access the old outputs through the
+manifest, `data/outputs/analysis/pbf_refresh_manifest.json`. Access the old outputs through the
 baseline tag. Do not recreate an existing baseline tag on a later commit.
 Geometry calculations use two worker processes by default; pass `--workers 1`
 to run serially on a resource-constrained machine.
@@ -174,6 +174,12 @@ plots and tables:
 python scripts/plot_footprint_area_by_city.py
 ```
 
+The Part 3 cohort requires confidence >= 0.77, footprint area >= 87.6 m²,
+and either area > 600 m² or more than three storeys. The storey criterion
+accepts explicit or estimated levels > 3 or explicit or estimated height > 9 m.
+Height analysis additionally requires positive explicit height and levels,
+with height divided by levels between 2 and 6 m, inclusive.
+
 The script reads `data/outputs/*_murb.csv` and `*_murbs.csv` and writes
 `data/outputs/analysis/footprint_area.svg`, `length.svg`, `width.svg`,
 `average_depth.svg`, `aspect_ratio.svg`, `rectangularity.svg`, `sample_size.csv`,
@@ -197,6 +203,49 @@ contribute to `All`.
 Use `--input-dir` and `--output-dir` to analyze a different set of CSVs without
 overwriting these results.
 
+### OSM presentation-level outlier filtering
+
+OSM footprint area, length, width, average depth, aspect ratio, and
+rectangularity summaries and figures use a single-pass 1.5-times-IQR filter
+after the existing cohort and valid-value selection. For each of these six
+metrics, quartiles are calculated from pooled values across all configured
+cities:
+
+```text
+IQR = Q3 - Q1
+retain Q1 - 1.5 * IQR <= value <= Q3 + 1.5 * IQR
+```
+
+The same bounds apply to each city and `All`. Filtering is independent per
+metric. Floor height, number of floors, and building height use all eligible
+values without IQR filtering; their existing explicit-height and 2–6 m
+floor-height eligibility criteria still apply. A footprint outlier can
+contribute to height statistics. Min, max, and 5th/50th/95th percentiles are
+calculated from each metric's selected values; figures use those same values,
+without additional percentile-based hiding.
+Remaining boxplot dots reflect city-specific whiskers, but are within the
+pooled retention bounds and are included in the tables.
+
+`data/outputs/analysis/osm_metric_filter_counts.csv` records the filter policy,
+bounds, and eligible-value, retained, and excluded counts per metric/city and
+for `All`. Unfiltered height metrics have `none`, blank bounds, and zero IQR
+exclusions.
+Input counts exclude missing metric values. `sample_size.csv` remains the
+untrimmed eligibility/cohort count table, and categorical shape counts are
+unchanged. Building CSVs and all consultant-only data/tables/figures are
+untouched. Zero IQR produces equal fences and retains only values equal to the
+quartiles; no alternative rule is silently substituted.
+
+The percentage removed depends on each metric's distribution, not a guaranteed
+0.7%. Filtered summaries describe the retained presentation dataset, not
+unbiased estimates of the full building population. Regenerate analysis only (no PBF
+read or building export needed):
+
+```powershell
+python -m scripts.plot_footprint_area_by_city
+python -m scripts.plot_floor_area_relationship
+```
+
 ## OSM and RDH area/floors comparison
 
 Compare Part 3 OSM buildings with RDH consultant records using a square
@@ -209,10 +258,13 @@ python scripts/plot_floor_area_relationship.py
 The output is `data/outputs/analysis/floor_area_vs_floors.svg`, with floors on
 the x-axis and area on the y-axis. OSM points use configured cities and the
 Part 3 filter, and require explicit `height_m` and `levels` with a 2–6 m
-floor-height ratio; this gives 133 records before trimming. Consultant points
+floor-height ratio. Consultant points
 require a nonblank climate zone and positive storey and floor-plate values.
-Points outside the pooled 0.3rd–99.7th percentile ranges on either axis are
-omitted. Source-specific colors and plotted counts appear in the legend.
+OSM points must pass the same pooled footprint IQR bounds as the footprint
+summary; floor counts are not IQR-filtered. Consultant points retain the existing
+pooled 0.3rd–99.7th percentile selection computed from the original unfiltered
+OSM/consultant pairs; the new OSM filter does not change their selection.
+Source-specific colors and plotted counts appear in the legend.
 Override `--osm-dir`, `--rdh-csv`, or `--output` to use other inputs or an
 output path.
 

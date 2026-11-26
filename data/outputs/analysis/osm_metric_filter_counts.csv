@@ -1,0 +1,127 @@
+Locations,Metric,Filter,Input count,Retained count,Excluded count,Excluded percent,Lower bound,Upper bound
+"Calgary, AB",footprint area (m2),1.5 IQR,1612,1489,123,7.630273,-554.191147,2788.361387
+"Calgary, AB",length (m),1.5 IQR,1612,1554,58,3.598015,-13.719010,117.595568
+"Calgary, AB",width (m),1.5 IQR,1612,1462,150,9.305211,-0.773916,53.628994
+"Calgary, AB",average depth (m),1.5 IQR,1610,1567,43,2.670807,8.907543,42.691947
+"Calgary, AB",aspect ratio,1.5 IQR,1612,1584,28,1.736973,-0.553199,4.383201
+"Calgary, AB",rectangularity,1.5 IQR,1612,1605,7,0.434243,0.346198,1.359428
+"Calgary, AB",Floor height (m),none,166,166,0,0.000000,,
+"Calgary, AB",Number of floors,none,166,166,0,0.000000,,
+"Calgary, AB",Building height (m),none,166,166,0,0.000000,,
+"Vancouver, BC",footprint area (m2),1.5 IQR,2434,2360,74,3.040263,-554.191147,2788.361387
+"Vancouver, BC",length (m),1.5 IQR,2434,2419,15,0.616270,-13.719010,117.595568
+"Vancouver, BC",width (m),1.5 IQR,2434,2364,70,2.875924,-0.773916,53.628994
+"Vancouver, BC",average depth (m),1.5 IQR,2433,2370,63,2.589396,8.907543,42.691947
+"Vancouver, BC",aspect ratio,1.5 IQR,2434,2408,26,1.068200,-0.553199,4.383201
+"Vancouver, BC",rectangularity,1.5 IQR,2434,2429,5,0.205423,0.346198,1.359428
+"Vancouver, BC",Floor height (m),none,85,85,0,0.000000,,
+"Vancouver, BC",Number of floors,none,85,85,0,0.000000,,
+"Vancouver, BC",Building height (m),none,85,85,0,0.000000,,
+"Winnipeg, MB",footprint area (m2),1.5 IQR,1042,987,55,5.278311,-554.191147,2788.361387
+"Winnipeg, MB",length (m),1.5 IQR,1042,1013,29,2.783109,-13.719010,117.595568
+"Winnipeg, MB",width (m),1.5 IQR,1042,975,67,6.429942,-0.773916,53.628994
+"Winnipeg, MB",average depth (m),1.5 IQR,1041,1025,16,1.536984,8.907543,42.691947
+"Winnipeg, MB",aspect ratio,1.5 IQR,1042,1007,35,3.358925,-0.553199,4.383201
+"Winnipeg, MB",rectangularity,1.5 IQR,1042,1035,7,0.671785,0.346198,1.359428
+"Winnipeg, MB",Floor height (m),none,24,24,0,0.000000,,
+"Winnipeg, MB",Number of floors,none,24,24,0,0.000000,,
+"Winnipeg, MB",Building height (m),none,24,24,0,0.000000,,
+"Saint John, NB",footprint area (m2),1.5 IQR,52,51,1,1.923077,-554.191147,2788.361387
+"Saint John, NB",length (m),1.5 IQR,52,51,1,1.923077,-13.719010,117.595568
+"Saint John, NB",width (m),1.5 IQR,52,50,2,3.846154,-0.773916,53.628994
+"Saint John, NB",average depth (m),1.5 IQR,52,51,1,1.923077,8.907543,42.691947
+"Saint John, NB",aspect ratio,1.5 IQR,52,49,3,5.769231,-0.553199,4.383201
+"Saint John, NB",rectangularity,1.5 IQR,52,51,1,1.923077,0.346198,1.359428
+"Saint John, NB",Floor height (m),none,0,0,0,0.000000,,
+"Saint John, NB",Number of floors,none,0,0,0,0.000000,,
+"Saint John, NB",Building height (m),none,0,0,0,0.000000,,
+"St. John’s, NL",footprint area (m2),1.5 IQR,84,81,3,3.571429,-554.191147,2788.361387
+"St. John’s, NL",length (m),1.5 IQR,84,82,2,2.380952,-13.719010,117.595568
+"St. John’s, NL",width (m),1.5 IQR,84,74,10,11.904762,-0.773916,53.628994
+"St. John’s, NL",average depth (m),1.5 IQR,84,81,3,3.571429,8.907543,42.691947
+"St. John’s, NL",aspect ratio,1.5 IQR,84,80,4,4.761905,-0.553199,4.383201
+"St. John’s, NL",rectangularity,1.5 IQR,84,83,1,1.190476,0.346198,1.359428
+"St. John’s, NL",Floor height (m),none,0,0,0,0.000000,,
+"St. John’s, NL",Number of floors,none,0,0,0,0.000000,,
+"St. John’s, NL",Building height (m),none,0,0,0,0.000000,,
+"Yellowknife, NT",footprint area (m2),1.5 IQR,48,47,1,2.083333,-554.191147,2788.361387
+"Yellowknife, NT",length (m),1.5 IQR,48,48,0,0.000000,-13.719010,117.595568
+"Yellowknife, NT",width (m),1.5 IQR,48,48,0,0.000000,-0.773916,53.628994
+"Yellowknife, NT",average depth (m),1.5 IQR,48,47,1,2.083333,8.907543,42.691947
+"Yellowknife, NT",aspect ratio,1.5 IQR,48,47,1,2.083333,-0.553199,4.383201
+"Yellowknife, NT",rectangularity,1.5 IQR,48,48,0,0.000000,0.346198,1.359428
+"Yellowknife, NT",Floor height (m),none,0,0,0,0.000000,,
+"Yellowknife, NT",Number of floors,none,0,0,0,0.000000,,
+"Yellowknife, NT",Building height (m),none,0,0,0,0.000000,,
+"Halifax, NS",footprint area (m2),1.5 IQR,377,327,50,13.262599,-554.191147,2788.361387
+"Halifax, NS",length (m),1.5 IQR,377,357,20,5.305040,-13.719010,117.595568
+"Halifax, NS",width (m),1.5 IQR,377,348,29,7.692308,-0.773916,53.628994
+"Halifax, NS",average depth (m),1.5 IQR,373,337,36,9.651475,8.907543,42.691947
+"Halifax, NS",aspect ratio,1.5 IQR,377,368,9,2.387268,-0.553199,4.383201
+"Halifax, NS",rectangularity,1.5 IQR,377,377,0,0.000000,0.346198,1.359428
+"Halifax, NS",Floor height (m),none,0,0,0,0.000000,,
+"Halifax, NS",Number of floors,none,0,0,0,0.000000,,
+"Halifax, NS",Building height (m),none,0,0,0,0.000000,,
+"Iqaluit, NU",footprint area (m2),1.5 IQR,4,4,0,0.000000,-554.191147,2788.361387
+"Iqaluit, NU",length (m),1.5 IQR,4,4,0,0.000000,-13.719010,117.595568
+"Iqaluit, NU",width (m),1.5 IQR,4,4,0,0.000000,-0.773916,53.628994
+"Iqaluit, NU",average depth (m),1.5 IQR,4,4,0,0.000000,8.907543,42.691947
+"Iqaluit, NU",aspect ratio,1.5 IQR,4,3,1,25.000000,-0.553199,4.383201
+"Iqaluit, NU",rectangularity,1.5 IQR,4,4,0,0.000000,0.346198,1.359428
+"Iqaluit, NU",Floor height (m),none,0,0,0,0.000000,,
+"Iqaluit, NU",Number of floors,none,0,0,0,0.000000,,
+"Iqaluit, NU",Building height (m),none,0,0,0,0.000000,,
+"Toronto, ON",footprint area (m2),1.5 IQR,4639,4311,328,7.070489,-554.191147,2788.361387
+"Toronto, ON",length (m),1.5 IQR,4639,4505,134,2.888554,-13.719010,117.595568
+"Toronto, ON",width (m),1.5 IQR,4639,4245,394,8.493210,-0.773916,53.628994
+"Toronto, ON",average depth (m),1.5 IQR,4638,4441,197,4.247520,8.907543,42.691947
+"Toronto, ON",aspect ratio,1.5 IQR,4639,4418,221,4.763958,-0.553199,4.383201
+"Toronto, ON",rectangularity,1.5 IQR,4639,4613,26,0.560466,0.346198,1.359428
+"Toronto, ON",Floor height (m),none,36,36,0,0.000000,,
+"Toronto, ON",Number of floors,none,36,36,0,0.000000,,
+"Toronto, ON",Building height (m),none,36,36,0,0.000000,,
+"Charlottetown, PE",footprint area (m2),1.5 IQR,69,67,2,2.898551,-554.191147,2788.361387
+"Charlottetown, PE",length (m),1.5 IQR,69,69,0,0.000000,-13.719010,117.595568
+"Charlottetown, PE",width (m),1.5 IQR,69,65,4,5.797101,-0.773916,53.628994
+"Charlottetown, PE",average depth (m),1.5 IQR,69,68,1,1.449275,8.907543,42.691947
+"Charlottetown, PE",aspect ratio,1.5 IQR,69,63,6,8.695652,-0.553199,4.383201
+"Charlottetown, PE",rectangularity,1.5 IQR,69,69,0,0.000000,0.346198,1.359428
+"Charlottetown, PE",Floor height (m),none,0,0,0,0.000000,,
+"Charlottetown, PE",Number of floors,none,0,0,0,0.000000,,
+"Charlottetown, PE",Building height (m),none,0,0,0,0.000000,,
+"Montreal, QC",footprint area (m2),1.5 IQR,2691,2572,119,4.422148,-554.191147,2788.361387
+"Montreal, QC",length (m),1.5 IQR,2691,2646,45,1.672241,-13.719010,117.595568
+"Montreal, QC",width (m),1.5 IQR,2691,2570,121,4.496470,-0.773916,53.628994
+"Montreal, QC",average depth (m),1.5 IQR,2686,2623,63,2.345495,8.907543,42.691947
+"Montreal, QC",aspect ratio,1.5 IQR,2691,2632,59,2.192493,-0.553199,4.383201
+"Montreal, QC",rectangularity,1.5 IQR,2691,2685,6,0.222965,0.346198,1.359428
+"Montreal, QC",Floor height (m),none,43,43,0,0.000000,,
+"Montreal, QC",Number of floors,none,43,43,0,0.000000,,
+"Montreal, QC",Building height (m),none,43,43,0,0.000000,,
+"Saskatoon, SK",footprint area (m2),1.5 IQR,481,461,20,4.158004,-554.191147,2788.361387
+"Saskatoon, SK",length (m),1.5 IQR,481,473,8,1.663202,-13.719010,117.595568
+"Saskatoon, SK",width (m),1.5 IQR,481,447,34,7.068607,-0.773916,53.628994
+"Saskatoon, SK",average depth (m),1.5 IQR,481,475,6,1.247401,8.907543,42.691947
+"Saskatoon, SK",aspect ratio,1.5 IQR,481,463,18,3.742204,-0.553199,4.383201
+"Saskatoon, SK",rectangularity,1.5 IQR,481,479,2,0.415800,0.346198,1.359428
+"Saskatoon, SK",Floor height (m),none,23,23,0,0.000000,,
+"Saskatoon, SK",Number of floors,none,23,23,0,0.000000,,
+"Saskatoon, SK",Building height (m),none,23,23,0,0.000000,,
+"Whitehorse, YT",footprint area (m2),1.5 IQR,26,26,0,0.000000,-554.191147,2788.361387
+"Whitehorse, YT",length (m),1.5 IQR,26,26,0,0.000000,-13.719010,117.595568
+"Whitehorse, YT",width (m),1.5 IQR,26,26,0,0.000000,-0.773916,53.628994
+"Whitehorse, YT",average depth (m),1.5 IQR,26,25,1,3.846154,8.907543,42.691947
+"Whitehorse, YT",aspect ratio,1.5 IQR,26,24,2,7.692308,-0.553199,4.383201
+"Whitehorse, YT",rectangularity,1.5 IQR,26,26,0,0.000000,0.346198,1.359428
+"Whitehorse, YT",Floor height (m),none,0,0,0,0.000000,,
+"Whitehorse, YT",Number of floors,none,0,0,0,0.000000,,
+"Whitehorse, YT",Building height (m),none,0,0,0,0.000000,,
+All,footprint area (m2),1.5 IQR,13559,12783,776,5.723136,-554.191147,2788.361387
+All,length (m),1.5 IQR,13559,13247,312,2.301055,-13.719010,117.595568
+All,width (m),1.5 IQR,13559,12678,881,6.497529,-0.773916,53.628994
+All,average depth (m),1.5 IQR,13545,13114,431,3.181986,8.907543,42.691947
+All,aspect ratio,1.5 IQR,13559,13146,413,3.045947,-0.553199,4.383201
+All,rectangularity,1.5 IQR,13559,13504,55,0.405635,0.346198,1.359428
+All,Floor height (m),none,377,377,0,0.000000,,
+All,Number of floors,none,377,377,0,0.000000,,
+All,Building height (m),none,377,377,0,0.000000,,

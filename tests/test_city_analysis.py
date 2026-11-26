@@ -11,11 +11,14 @@ from matplotlib.ticker import MultipleLocator
 from scripts.analyze_rdh import RDH_METRICS, main as analyze_rdh
 from scripts.plot_footprint_area_by_city import (
     LOCATIONS,
+    _filter_metric_values,
+    _iqr_bounds,
     _summarize,
     _write_histogram,
     main,
 )
 from scripts.plot_floor_area_relationship import (
+    _filter_comparison_iqr,
     _load_comparison_data,
     _trim_percentiles,
     _write_scatterplot,
@@ -50,7 +53,7 @@ class CityAnalysisTests(unittest.TestCase):
             samples = pd.read_csv(output_dir / "sample_size.csv").set_index("Locations")
             self.assertEqual(samples.loc["All", "Part 3 MURBs"], 19)
 
-    def test_plot_styles_and_hides_only_extreme_fliers(self):
+    def test_plot_and_summary_use_the_same_iqr_filtered_values(self):
         with tempfile.TemporaryDirectory() as directory:
             input_dir = Path(directory) / "input"
             input_dir.mkdir()
@@ -80,7 +83,7 @@ class CityAnalysisTests(unittest.TestCase):
                 boxes = [line for line in axis.lines if len(line.get_xdata()) == 5]
                 self.assertEqual([box.get_color() for box in boxes], ["black", "red"])
                 fliers = [line for line in axis.lines if line.get_marker() == "."]
-                self.assertEqual([list(line.get_ydata()) for line in fliers], [[900], [900]])
+                self.assertEqual([list(line.get_ydata()) for line in fliers], [[], []])
                 self.assertEqual([line.get_color() for line in fliers], ["black", "red"])
                 self.assertEqual(axis.get_ylim(), (0, 2000))
                 self.assertEqual([tick for tick in axis.get_yticks() if 0 <= tick <= 2000],
@@ -89,9 +92,149 @@ class CityAnalysisTests(unittest.TestCase):
                 self.assertEqual(axis.yaxis.get_minor_locator().tick_values(0, 2000)[1:4].tolist(),
                                  [0, 250, 500])
                 self.assertEqual(pd.read_csv(Path(directory) / "output" / "footprint_area_summary.csv")
-                                 .iloc[-1]["Maximum footprint area (m2)"], 10000)
+                                 .iloc[-1]["Maximum footprint area (m2)"], 749)
+                filters = pd.read_csv(
+                    Path(directory) / "output" / "osm_metric_filter_counts.csv"
+                )
+                footprint = filters.loc[
+                    filters["Locations"].eq("All")
+                    & filters["Metric"].eq("footprint area (m2)")
+                ].iloc[0]
+                self.assertEqual(footprint["Retained count"], 100)
+                self.assertEqual(footprint["Excluded count"], 3)
             finally:
                 plt.close(figure)
+
+    def test_iqr_bounds_handle_zero_spread_and_missing_values_explicitly(self):
+        bounds = _iqr_bounds(list(range(11)))
+        self.assertEqual(bounds, (-5.0, 15.0))
+        self.assertEqual(_filter_metric_values([-6, -5, 15, 16], bounds), [-5, 15])
+        values = [3.0] * 9 + [4.0]
+        bounds = _iqr_bounds(values)
+        self.assertEqual(bounds, (3.0, 3.0))
+        self.assertEqual(_filter_metric_values(values, bounds), [3.0] * 9)
+        self.assertIsNone(_iqr_bounds([]))
+        self.assertEqual(_filter_metric_values([], None), [])
+        with self.assertRaises(ValueError):
+            _filter_metric_values([3.0], None)
+        with self.assertRaises(ValueError):
+            _iqr_bounds([float("inf")])
+
+    def test_pooled_iqr_is_metric_specific_and_does_not_modify_building_csvs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_dir = root / "input"
+            input_dir.mkdir()
+            for city, areas in (
+                ("calgary", [*range(100, 110), 10000]),
+                ("vancouver", [1000]),
+            ):
+                pd.DataFrame({
+                    "murb_confidence": [0.9] * len(areas),
+                    "height_m": [12] * len(areas),
+                    "height_est_m": [12] * len(areas),
+                    "levels": [4] * len(areas),
+                    "levels_est": [4] * len(areas),
+                    "footprint_area_m2": areas,
+                }).to_csv(input_dir / f"{city}_murbs.csv", index=False)
+            original = {path: path.read_bytes() for path in input_dir.glob("*.csv")}
+            output_dir = root / "output"
+            with patch.object(sys, "argv", [
+                "analysis", "--input-dir", str(input_dir), "--output-dir", str(output_dir),
+            ]), patch("scripts.plot_footprint_area_by_city._write_boxplot") as boxplot, \
+                    patch("scripts.plot_footprint_area_by_city._write_histogram"):
+                self.assertEqual(main(), 0)
+
+            summary = pd.read_csv(output_dir / "footprint_area_summary.csv").set_index(
+                "Locations"
+            )
+            self.assertEqual(summary.loc["All", "Maximum footprint area (m2)"], 109)
+            self.assertEqual(summary.loc["All", "50th percentile footprint area (m2)"], 104.5)
+            filters = pd.read_csv(output_dir / "osm_metric_filter_counts.csv").set_index(
+                ["Locations", "Metric"]
+            )
+            footprint = filters.loc[("All", "footprint area (m2)")]
+            self.assertEqual(footprint["Input count"], 12)
+            self.assertEqual(footprint["Retained count"], 10)
+            self.assertEqual(footprint["Lower bound"], 94.5)
+            self.assertEqual(footprint["Upper bound"], 116.5)
+            self.assertEqual(
+                filters.loc[("Vancouver, BC", "footprint area (m2)"), "Retained count"], 0
+            )
+            self.assertEqual(filters.loc[("All", "Number of floors"), "Retained count"], 12)
+            self.assertEqual(
+                filters.loc[("Vancouver, BC", "Number of floors"), "Retained count"], 1
+            )
+            samples = pd.read_csv(output_dir / "sample_size.csv").set_index("Locations")
+            self.assertEqual(samples.loc["All", "Part 3 MURBs"], 12)
+            self.assertEqual(boxplot.call_args.args[0], [list(range(100, 110))] * 2)
+            for path, content in original.items():
+                self.assertEqual(path.read_bytes(), content)
+
+    def test_height_metrics_are_unfiltered_in_tables_histograms_and_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_dir, output_dir = root / "input", root / "output"
+            input_dir.mkdir()
+            pd.DataFrame({
+                "murb_confidence": [0.9] * 11,
+                "height_m": [12] * 10 + [150],
+                "height_est_m": [12] * 10 + [150],
+                "levels": [4] * 10 + [30],
+                "levels_est": [4] * 10 + [30],
+                "footprint_area_m2": [700] * 10 + [10000],
+            }).to_csv(input_dir / "calgary_murbs.csv", index=False)
+            with patch.object(sys, "argv", [
+                "analysis", "--input-dir", str(input_dir), "--output-dir", str(output_dir),
+            ]), patch("scripts.plot_footprint_area_by_city._write_boxplot"), \
+                    patch("scripts.plot_footprint_area_by_city._write_histogram") as histogram:
+                self.assertEqual(main(), 0)
+            expected = {
+                "Floor height (m)": ("floor_height.csv", 5),
+                "Number of floors": ("floor_num.csv", 30),
+                "Building height (m)": ("build_height.csv", 150),
+            }
+            counts = pd.read_csv(output_dir / "osm_metric_filter_counts.csv").set_index(
+                ["Locations", "Metric"]
+            )
+            for metric, (filename, maximum) in expected.items():
+                summary = pd.read_csv(output_dir / filename).set_index("Locations")
+                self.assertEqual(summary.loc["All", f"Maximum {metric}"], maximum)
+                report = counts.loc[("All", metric)]
+                self.assertEqual(report["Input count"], 11)
+                self.assertEqual(report["Retained count"], 11)
+                self.assertEqual(report["Excluded count"], 0)
+                self.assertEqual(report["Filter"], "none")
+                self.assertTrue(pd.isna(report["Lower bound"]))
+                self.assertTrue(pd.isna(report["Upper bound"]))
+            calls = {call.args[2]: call.args[0] for call in histogram.call_args_list}
+            self.assertEqual(calls["Floor height (m)"], [3] * 10 + [5])
+            self.assertEqual(calls["Number of floors"], [4] * 10 + [30])
+            self.assertEqual(calls["Building height (m)"], [12] * 10 + [150])
+            self.assertEqual(counts.loc[("All", "footprint area (m2)"), "Excluded count"], 1)
+
+    def test_scatter_iqr_filters_only_osm_footprints_without_changing_consultants(self):
+        points = pd.DataFrame({
+            "footprint_area_m2": [700, 3000, 700, 50000, 1000, 5000],
+            "floors": [4, 4, 15, 40, 5, 20],
+            "source": ["OSM"] * 4 + ["Consultants"] * 2,
+        })
+        original = _trim_percentiles(points)
+        filtered = _filter_comparison_iqr(points, {
+            "footprint area (m2)": (500, 2000),
+            "Number of floors": (3, 6),
+        })
+        osm = filtered.loc[filtered["source"].eq("OSM")]
+        self.assertEqual(osm["footprint_area_m2"].tolist(), [700, 700])
+        self.assertEqual(osm["floors"].tolist(), [4, 15])
+        pd.testing.assert_frame_equal(
+            filtered.loc[filtered["source"].eq("Consultants")].reset_index(drop=True),
+            original.loc[original["source"].eq("Consultants")].reset_index(drop=True),
+        )
+        self.assertEqual(
+            filtered.loc[filtered["source"].eq("Consultants"), "footprint_area_m2"].tolist(),
+            [1000, 5000],
+        )
 
     def test_part_3_excludes_footprints_smaller_than_87_6(self):
         with tempfile.TemporaryDirectory() as directory:
