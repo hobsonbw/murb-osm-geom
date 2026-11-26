@@ -149,7 +149,7 @@ heights: it also requires passing the Likely and Part 3 filters, explicit
 levels, and the 2-6 m height/levels check.
 
 Measured counts are saved in
-[`data/outputs/analysis/calgary_pbf_corrected_cohort.csv`](data/outputs/analysis/calgary_pbf_corrected_cohort.csv).
+[`data/outputs/analysis/calgary_pbf_corrected_cohort.csv`](../../data/outputs/analysis/calgary_pbf_corrected_cohort.csv).
 A separate corrected checkpoint containing all 59,335 possible candidates,
 their geometries, raw tags, height estimates, and footprint areas is retained at
 `data/processed/calgary_pbf_corrected_checkpoint.gpkg`.
@@ -218,11 +218,11 @@ available in that analysis, not that they had no MURBs.
 
 Outputs:
 
-- [`sample_size.csv`](data/outputs/analysis/sample_size.csv): current cohorts
+- [`sample_size.csv`](../../data/outputs/analysis/sample_size.csv): current cohorts
   for every configured city and the aggregate.
-- [`cohort_comparison.csv`](data/outputs/analysis/cohort_comparison.csv):
+- [`cohort_comparison.csv`](../../data/outputs/analysis/cohort_comparison.csv):
   baseline/current counts and changes in the same city order.
-- [`pbf_refresh_manifest.json`](data/outputs/analysis/pbf_refresh_manifest.json):
+- [`pbf_refresh_manifest.json`](../../data/outputs/analysis/provenance/pbf_refresh_manifest.json):
   source filename and SHA-256, the workflow revision used for generation,
   city list, acquisition counts, and shape-cohort selection.
 - Canonical `<city>_murbs.csv` exports under `data/outputs/`, plus local
@@ -273,7 +273,7 @@ additionally hide extreme markers.
 This does not change the full building CSVs, eligibility counts above,
 `sample_size.csv`, or categorical shape counts. The height cohort still has
 377 eligible records, all retained for each height metric.
-[`osm_metric_filter_counts.csv`](data/outputs/analysis/osm_metric_filter_counts.csv)
+[`osm_metric_filter_counts.csv`](../../data/outputs/analysis/exploratory/osm_metric_filter_counts.csv)
 records input, retained, and excluded counts, percentages, filter policy, and
 applicable fences for all nine numeric metrics. Missing values are not counted
 as outlier exclusions.

@@ -194,10 +194,12 @@ def main() -> int:
         "shape_cohort": "Part 3 MURBs",
         "metric_workers": args.workers,
     }
-    (analysis_dir / "pbf_refresh_manifest.json").write_text(
+    manifest_path = ensure_dir(analysis_dir / "provenance") / "pbf_refresh_manifest.json"
+    manifest_path.write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8",
     )
-    LOGGER.info("Refresh complete; comparison and provenance written to %s", analysis_dir)
+    LOGGER.info("Refresh complete; comparison written to %s, provenance to %s",
+                analysis_dir, manifest_path)
     return 0
 
 

@@ -1,14 +1,18 @@
+import hashlib
+import json
+import sys
 import tempfile
 import unittest
 import warnings
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import geopandas as gpd
 import numpy as np
 from shapely.geometry import MultiPolygon, box
 
-from scripts.refresh_city_analysis import _calculate_metrics, _extract_city_buildings
+from scripts.refresh_city_analysis import _calculate_metrics, _extract_city_buildings, main as refresh
 from src.calculate_geometry import _calculate_average_depth
 from src.download_osm import _load_from_pbf
 from src.estimate_heights import estimate_heights
@@ -23,6 +27,35 @@ class OsmIngestionTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.settings = load_settings()
         self.settings["paths"]["processed_dir"] = self.directory.name
+
+    def test_refresh_writes_manifest_to_provenance_directory(self):
+        root = Path(self.directory.name)
+        pbf = root / "source.pbf"
+        pbf.write_bytes(b"test pbf")
+        settings = {
+            "acquisition": {"pbf_path": str(pbf)},
+            "paths": {
+                "raw_dir": str(root / "raw"),
+                "processed_dir": str(root / "processed"),
+                "outputs_dir": str(root / "outputs"),
+            },
+        }
+        with patch.object(sys, "argv", ["refresh"]), \
+                patch("scripts.refresh_city_analysis.load_settings", return_value=settings), \
+                patch("scripts.refresh_city_analysis.project_root", return_value=root), \
+                patch("scripts.refresh_city_analysis.LOCATIONS", {}), \
+                patch("scripts.refresh_city_analysis._extract_city_buildings", return_value={}), \
+                patch("scripts.refresh_city_analysis._compare_cohorts"), \
+                patch("scripts.refresh_city_analysis.subprocess.run",
+                      return_value=SimpleNamespace(stdout="revision\n")):
+            self.assertEqual(refresh(), 0)
+        analysis = root / "outputs" / "analysis"
+        manifest_path = analysis / "provenance" / "pbf_refresh_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["pbf_file"], "source.pbf")
+        self.assertEqual(manifest["pbf_sha256"], hashlib.sha256(b"test pbf").hexdigest())
+        self.assertEqual(manifest["workflow_commit"], "revision")
+        self.assertFalse((analysis / "pbf_refresh_manifest.json").exists())
 
     def test_gdal_ways_survive_and_relation_ids_do_not_collide(self):
         raw = gpd.GeoDataFrame(

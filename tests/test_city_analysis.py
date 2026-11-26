@@ -167,7 +167,7 @@ class CityAnalysisTests(unittest.TestCase):
                 self.assertEqual(pd.read_csv(Path(directory) / "output" / "footprint_area_summary.csv")
                                  .iloc[-1]["Maximum footprint area (m2)"], 749)
                 filters = pd.read_csv(
-                    Path(directory) / "output" / "osm_metric_filter_counts.csv"
+                    Path(directory) / "output" / "exploratory" / "osm_metric_filter_counts.csv"
                 )
                 footprint = filters.loc[
                     filters["Locations"].eq("All")
@@ -223,7 +223,7 @@ class CityAnalysisTests(unittest.TestCase):
             )
             self.assertEqual(summary.loc["All", "Maximum footprint area (m2)"], 109)
             self.assertEqual(summary.loc["All", "50th percentile footprint area (m2)"], 104.5)
-            filters = pd.read_csv(output_dir / "osm_metric_filter_counts.csv").set_index(
+            filters = pd.read_csv(output_dir / "exploratory" / "osm_metric_filter_counts.csv").set_index(
                 ["Locations", "Metric"]
             )
             footprint = filters.loc[("All", "footprint area (m2)")]
@@ -267,7 +267,7 @@ class CityAnalysisTests(unittest.TestCase):
                 "Number of floors": ("floor_num.csv", 30),
                 "Building height (m)": ("build_height.csv", 150),
             }
-            counts = pd.read_csv(output_dir / "osm_metric_filter_counts.csv").set_index(
+            counts = pd.read_csv(output_dir / "exploratory" / "osm_metric_filter_counts.csv").set_index(
                 ["Locations", "Metric"]
             )
             for metric, (filename, maximum) in expected.items():

@@ -9,7 +9,7 @@ By default, the script reads data/outputs/*_murb.csv and *_murbs.csv and writes:
     data/outputs/analysis/floor_num.svg
     data/outputs/analysis/build_height.svg
     data/outputs/analysis/sample_size.csv
-    data/outputs/analysis/osm_metric_filter_counts.csv
+    data/outputs/analysis/exploratory/osm_metric_filter_counts.csv
     data/outputs/analysis/footprint_area_summary.csv
     data/outputs/analysis/floor_height.csv
     data/outputs/analysis/floor_num.csv
@@ -502,7 +502,8 @@ def main() -> int:
 
     sample_path = args.output_dir / args.sample_size_name
     pd.DataFrame(sample_rows).to_csv(sample_path, index=False)
-    filter_path = args.output_dir / "osm_metric_filter_counts.csv"
+    filter_path = args.output_dir / "exploratory" / "osm_metric_filter_counts.csv"
+    filter_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(filter_rows).to_csv(filter_path, index=False, float_format="%.6f")
     summary_paths = {}
     for metric, (_, _, _, _, summary_name, _) in metric_definitions.items():

@@ -137,7 +137,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=Path, default=Path("data/outputs"))
     parser.add_argument(
-        "--output-dir", type=Path, default=Path("data/outputs/analysis"),
+        "--output-dir", type=Path, default=Path("data/outputs/analysis/exploratory"),
     )
     args = parser.parse_args()
     try:
