@@ -35,8 +35,8 @@ The geometry plots and tables summarize `length_m`, `width_m`, `average_depth_m`
 footprint output.
 Tables include configured locations in a fixed order, zero rows for cities
 without data, and an aggregate `All` row. Each plot omits individual cities
-with fewer than 10 valid values for that metric, but their buildings still
-contribute to `All`.
+with fewer than 10 IQR-retained values for that metric, before any additional
+plot-only cutoff, but their buildings still contribute to `All`.
 Use `--input-dir` and `--output-dir` to analyze a different set of CSVs without
 overwriting these results.
 
@@ -57,20 +57,34 @@ The same bounds apply to each city and `All`. Filtering is independent per
 metric. Floor height, number of floors, and building height use all eligible
 values without IQR filtering; their existing explicit-height and 2–6 m
 floor-height eligibility criteria still apply. A footprint outlier can
-contribute to height statistics. Min, max, and 5th/50th/95th percentiles are
-calculated from each metric's selected values; figures use those same values,
-without additional percentile-based hiding.
-Remaining boxplot dots reflect city-specific whiskers, but are within the
-pooled retention bounds and are included in the tables.
+contribute to height statistics.
+
+Footprint area, length, width, and average depth tables report their 5th
+percentile as `Minimum`, followed by the 25th, 50th, and 75th percentiles
+and maximum. All five are computed from the IQR-retained values, before
+removing the lower tail. Their boxplots exclude values strictly below the
+5th percentile: each city uses its own cutoff, while `All` uses the pooled
+cutoff. The percentile may fall between actual observations, so the plotted
+minimum can be higher than the reported value. Boxplot quartiles are calculated
+from the plotted values and can differ from the table quartiles.
+
+The three height tables report the minimum, 25th, 50th, and 75th percentiles,
+and maximum of all eligible height values. Aspect ratio and rectangularity
+tables and plots retain their previous IQR-only behavior and 5th/50th/95th
+percentile summaries. Remaining boxplot dots reflect the plotted groups'
+whiskers and remain within the pooled IQR bounds.
 
 `data/outputs/analysis/exploratory/osm_metric_filter_counts.csv` records the filter policy,
 bounds, and eligible-value, retained, and excluded counts per metric/city and
 for `All`. Unfiltered height metrics have `none`, blank bounds, and zero IQR
 exclusions.
-Input counts exclude missing metric values. `sample_size.csv` remains the
+The filter-count file describes the IQR stage only; it does not count the
+additional 5th-percentile plot exclusions. Input counts exclude missing metric
+values. `sample_size.csv` remains the
 untrimmed eligibility/cohort count table, and categorical shape counts are
 unchanged. Building CSVs and all consultant-only data/tables/figures are
-untouched. Zero IQR produces equal fences and retains only values equal to the
+untouched. The lower-tail cutoff does not change comparison or exploratory
+plots. Zero IQR produces equal fences and retains only values equal to the
 quartiles; no alternative rule is silently substituted.
 
 The percentage removed depends on each metric's distribution, not a guaranteed

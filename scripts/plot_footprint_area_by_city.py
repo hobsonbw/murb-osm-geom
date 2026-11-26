@@ -94,6 +94,9 @@ GEOMETRY_SUMMARY_NAMES = {
     "aspect_ratio": "aspect_ratio_summary.csv",
     "rectangularity": "rectangularity_summary.csv",
 }
+PERCENTILE_MINIMUM_METRICS = {
+    "footprint_area_m2", "length_m", "width_m", "average_depth_m",
+}
 
 
 def _statistics(values: list[float]) -> dict[str, float]:
@@ -103,6 +106,26 @@ def _statistics(values: list[float]) -> dict[str, float]:
     percentiles = series.quantile([0.05, 0.50, 0.95])
     return dict(zip(STATISTICS, (series.min(), percentiles.loc[0.05],
                                  percentiles.loc[0.50], percentiles.loc[0.95], series.max())))
+
+
+def _quartile_statistics(
+    values: list[float], percentile_minimum: bool = False,
+) -> dict[str, float]:
+    names = ("Minimum", "25th percentile", "50th percentile", "75th percentile", "Maximum")
+    if not values:
+        return dict.fromkeys(names, 0.0)
+    series = pd.Series(values)
+    percentiles = series.quantile([0.05, 0.25, 0.50, 0.75])
+    minimum = percentiles.loc[0.05] if percentile_minimum else series.min()
+    return dict(zip(names, (minimum, percentiles.loc[0.25], percentiles.loc[0.50],
+                            percentiles.loc[0.75], series.max())))
+
+
+def _exclude_below_fifth_percentile(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    cutoff = float(pd.Series(values).quantile(0.05))
+    return [value for value in values if value >= cutoff]
 
 
 def _iqr_bounds(values: list[float]) -> tuple[float, float] | None:
@@ -461,9 +484,13 @@ def main() -> int:
             filter_rows.append(_metric_filter_row(
                 city, label, input_count, len(metric_values), bounds.get(label),
             ))
+            statistics = (
+                _quartile_statistics(metric_values, percentile_minimum=True)
+                if metric in PERCENTILE_MINIMUM_METRICS else _statistics(metric_values)
+            )
             metric_rows[metric].append({"Locations": city, **{
                 f"{statistic} {label}": value
-                for statistic, value in _statistics(metric_values).items()
+                for statistic, value in statistics.items()
             }})
             all_metric_values[metric].extend(metric_values)
         for metric in HEIGHT_METRICS:
@@ -474,7 +501,7 @@ def main() -> int:
             ))
             height_rows[metric].append({"Locations": city, **{
                 f"{statistic} {metric}": value
-                for statistic, value in _statistics(metrics[metric]).items()
+                for statistic, value in _quartile_statistics(metrics[metric]).items()
             }})
             all_heights[metric].extend(metrics[metric])
         for metric in all_counts:
@@ -486,9 +513,13 @@ def main() -> int:
             "All", label, all_input_counts[label], len(all_metric_values[metric]),
             bounds.get(label),
         ))
+        statistics = (
+            _quartile_statistics(all_metric_values[metric], percentile_minimum=True)
+            if metric in PERCENTILE_MINIMUM_METRICS else _statistics(all_metric_values[metric])
+        )
         metric_rows[metric].append({"Locations": "All", **{
             f"{statistic} {label}": value
-            for statistic, value in _statistics(all_metric_values[metric]).items()
+            for statistic, value in statistics.items()
         }})
     for metric in HEIGHT_METRICS:
         filter_rows.append(_metric_filter_row(
@@ -497,7 +528,7 @@ def main() -> int:
         ))
         height_rows[metric].append({"Locations": "All", **{
             f"{statistic} {metric}": value
-            for statistic, value in _statistics(all_heights[metric]).items()
+            for statistic, value in _quartile_statistics(all_heights[metric]).items()
         }})
 
     sample_path = args.output_dir / args.sample_size_name
@@ -542,6 +573,8 @@ def main() -> int:
         plot_values = [city_data[city][1][label] for city in labels]
         labels.append("All")
         plot_values.append(all_values)
+        if metric in PERCENTILE_MINIMUM_METRICS:
+            plot_values = [_exclude_below_fifth_percentile(values) for values in plot_values]
         plot_path = args.output_dir / plot_name
         y_ticks = tuple(index / 10 for index in range(11)) if metric == "rectangularity" else None
         _write_boxplot(

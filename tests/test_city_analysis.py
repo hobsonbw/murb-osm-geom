@@ -12,6 +12,7 @@ from scipy import stats
 from scripts.analyze_rdh import RDH_METRICS, main as analyze_rdh
 from scripts.plot_footprint_area_by_city import (
     LOCATIONS,
+    _exclude_below_fifth_percentile,
     _filter_metric_values,
     _iqr_bounds,
     _summarize,
@@ -126,7 +127,7 @@ class CityAnalysisTests(unittest.TestCase):
             samples = pd.read_csv(output_dir / "sample_size.csv").set_index("Locations")
             self.assertEqual(samples.loc["All", "Part 3 MURBs"], 19)
 
-    def test_plot_and_summary_use_the_same_iqr_filtered_values(self):
+    def test_plot_uses_fifth_percentile_cutoff_after_iqr_filtering(self):
         with tempfile.TemporaryDirectory() as directory:
             input_dir = Path(directory) / "input"
             input_dir.mkdir()
@@ -193,6 +194,11 @@ class CityAnalysisTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _iqr_bounds([float("inf")])
 
+    def test_plot_cutoff_keeps_values_equal_to_fifth_percentile(self):
+        self.assertEqual(_exclude_below_fifth_percentile([]), [])
+        self.assertEqual(_exclude_below_fifth_percentile([5.0] * 10), [5.0] * 10)
+        self.assertEqual(_exclude_below_fifth_percentile([0.0, 10.0, 20.0]), [10.0, 20.0])
+
     def test_pooled_iqr_is_metric_specific_and_does_not_modify_building_csvs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -240,9 +246,72 @@ class CityAnalysisTests(unittest.TestCase):
             )
             samples = pd.read_csv(output_dir / "sample_size.csv").set_index("Locations")
             self.assertEqual(samples.loc["All", "Part 3 MURBs"], 12)
-            self.assertEqual(boxplot.call_args.args[0], [list(range(100, 110))] * 2)
+            self.assertEqual(boxplot.call_args.args[0], [list(range(101, 110))] * 2)
             for path, content in original.items():
                 self.assertEqual(path.read_bytes(), content)
+
+    def test_summary_quartiles_and_city_plot_cutoffs_use_iqr_retained_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_dir, output_dir = root / "input", root / "output"
+            input_dir.mkdir()
+            for city, start in (("calgary", 0), ("vancouver", 20)):
+                pd.DataFrame({
+                    "murb_confidence": [0.9] * 20,
+                    "height_m": list(range(10, 30)),
+                    "height_est_m": list(range(10, 30)),
+                    "levels": [5] * 20,
+                    "levels_est": [5] * 20,
+                    "footprint_area_m2": list(range(700 + start, 720 + start)),
+                    "length_m": list(range(40 + start, 60 + start)),
+                    "width_m": list(range(10 + start, 30 + start)),
+                    "average_depth_m": list(range(5 + start, 25 + start)),
+                }).to_csv(input_dir / f"{city}_murbs.csv", index=False)
+            with patch.object(sys, "argv", [
+                "analysis", "--input-dir", str(input_dir), "--output-dir", str(output_dir),
+            ]), patch("scripts.plot_footprint_area_by_city._write_boxplot") as boxplot, \
+                    patch("scripts.plot_footprint_area_by_city._write_histogram"):
+                self.assertEqual(main(), 0)
+
+            calls = {call.args[4].name: call.args for call in boxplot.call_args_list}
+            for filename, stem, label, base in (
+                ("footprint_area_summary.csv", "footprint_area.svg", "footprint area (m2)", 700),
+                ("length_summary.csv", "length.svg", "length (m)", 40),
+                ("width_summary.csv", "width.svg", "width (m)", 10),
+                ("average_depth_summary.csv", "average_depth.svg", "average depth (m)", 5),
+            ):
+                with self.subTest(metric=label):
+                    summary = pd.read_csv(output_dir / filename).set_index("Locations")
+                    self.assertEqual(summary.columns.tolist(), [
+                        f"Minimum {label}", f"25th percentile {label}",
+                        f"50th percentile {label}", f"75th percentile {label}",
+                        f"Maximum {label}",
+                    ])
+                    self.assertEqual(summary.loc["Calgary, AB"].tolist(),
+                                     [base + 0.95, base + 4.75, base + 9.5,
+                                      base + 14.25, base + 19])
+                    self.assertEqual(summary.loc["All", f"Minimum {label}"], base + 1.95)
+                    plotted, labels = calls[stem][:2]
+                    self.assertEqual(labels, ["Calgary, AB", "Vancouver, BC", "All"])
+                    self.assertEqual(plotted, [
+                        list(range(base + 1, base + 20)),
+                        list(range(base + 21, base + 40)),
+                        list(range(base + 2, base + 40)),
+                    ])
+
+            for filename, metric, expected in (
+                ("build_height.csv", "Building height (m)", [10, 14.75, 19.5, 24.25, 29]),
+                ("floor_height.csv", "Floor height (m)", [2, 2.95, 3.9, 4.85, 5.8]),
+                ("floor_num.csv", "Number of floors", [5, 5, 5, 5, 5]),
+            ):
+                with self.subTest(metric=metric):
+                    summary = pd.read_csv(output_dir / filename).set_index("Locations")
+                    self.assertEqual(summary.columns.tolist(), [
+                        f"Minimum {metric}", f"25th percentile {metric}",
+                        f"50th percentile {metric}", f"75th percentile {metric}",
+                        f"Maximum {metric}",
+                    ])
+                    self.assertEqual(summary.loc["All"].tolist(), expected)
 
     def test_height_metrics_are_unfiltered_in_tables_histograms_and_counts(self):
         with tempfile.TemporaryDirectory() as directory:

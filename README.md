@@ -206,8 +206,9 @@ and open the resulting HTML files in a browser.
 
 City MURB CSVs remain in `data/outputs/`; primary metric outputs are in
 `data/outputs/analysis/`, with exploratory outputs in its `exploratory/`
-subfolder. Geometry and footprint summaries use pooled IQR filtering; height
-summaries use all eligible explicit-height records. See the
+subfolder. Geometry and footprint summaries use pooled IQR filtering; four
+geometry boxplots additionally omit values below their group-specific 5th
+percentile. Height summaries use all eligible explicit-height records. See the
 [analysis guide](docs/analysis.md) for cohort criteria, filtering, output
 files, correlations, consultant comparisons, and interpretation caveats.
 
